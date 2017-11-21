@@ -1,0 +1,19 @@
+* bity fee selection and coin selection                                                                                                              :bity:
+:PROPERTIES:
+:CREATED: [2017-11-21 Tue 17:45]
+:MODIFIED: [2017-11-21 Tue 17:58]
+:END:
+
+** coin utxo selection
+- maintain a set of utxos in the hot wallet that does not change the utxo-value distribution function
+ https://github.com/bitcoinjs/coinselect/blob/master/stats/strategies.js
+ 
+
+
+** fee estimator
+- mempool fee distribution
+- last few blocks fee distribution
+- n txs in mempool
+- rate of change of n txs in mempool
+- create time distribution functions
+- pick fees that will get txs in on average after 3 blocks, using RBF and 95% CI cumsum at say 6 blocks
