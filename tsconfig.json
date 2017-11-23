@@ -1,0 +1,25 @@
+{
+    "compileOnSave": true,
+    "compilerOptions": {
+        "outDir": "./dist",
+        "sourceMap": true,
+        "allowJs": true,
+        "declaration": false,
+        "module": "commonjs",
+        "moduleResolution": "node",
+        "emitDecoratorMetadata": true,
+        "experimentalDecorators": true,
+        "strictNullChecks": true,
+        "target": "ES6",
+        "lib": ["ES6"],
+        "typeRoots": [
+            "./node_modules/@types"
+        ]
+    },
+    "include": [
+        "*.ts",
+        "models/*.ts",
+        "types.d.ts",
+        "./node_modules/types-ethereumjs-util/index.d.ts"
+    ]
+}
