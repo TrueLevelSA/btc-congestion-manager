@@ -65,35 +65,69 @@ const rawtxsocket$: Observable<any> =
     return () => socket.close()
   })
 
-const transactions$ =
+const transaction$ =
   rawtxsocket$
-    .flatMap((message) => getFee(message)).share()
+    .flatMap((message) => getFee(message))
+    .scan((acc, x) => [x, ...acc], [])
+// get size from acc to drop elements that are far off
 
-transactions$
-  .bufferTime(10000)
-  .map(txs => ({
-      mean: txs.reduce((acc, tx) => tx.feeSatoshiPerByte + acc, 0) / txs.length,
-      size: txs.length,
-      time: 10000,
-  }))
-  .subscribe(console.log, console.error, console.log)
+    .map(txs =>
+      txs.sort((a, b) => b.feeSatoshiPerByte - a.feeSatoshiPerByte))
+
+// flatMap mempool_node$ here
+
+// const sortedTransactions$ =
+//   transaction$
+//     // .toArray()
+//     .map(txs =>
+//       txs.sort((a, b) => b.feeSatoshiPerByte - a.feeSatoshiPerByte))
+
+const mempool_node$: Observable<string[]> = Observable.fromPromise(
+  rpc.getRawMemPool()
+    .then(x => x)
+    .catch(e => e)
+)
+
+const mempuller$ =
+  Observable.timer(10000, 5000)
+    .flatMap((_) => mempool_node$)
+// .flatMap(txids => txids
+//   .map(txid => transactions$
+//     .filter(tx => tx.txid === txid)
+//   )).mergeAll())
+
+transaction$
+  .subscribe(console.log)
+// .combineLatest(mempuller$, (txs, txids) => txs.map)
+// mempool$.combineAll()
+
+
+// transactions$
+//   .bufferTime(10000)
+//   .map(txs => ({
+//     mean: txs.reduce((acc, tx) => tx.feeSatoshiPerByte + acc, 0) / txs.length,
+//     size: txs.length,
+//     time: 10000,
+//   }))
+//   .subscribe(console.log, console.error, console.log)
 
 
 interface Tx {
-  txid: string,
-  hash: string,
-  version: number,
-  size: number,
-  vsize: number,
-  locktime: number,
-  vin:
-  [{
-    txid: string,
-    vout: number,
-    scriptSig: Object,
+  txid: string
+  hash: string
+  version: number
+  size: number
+  vsize: number
+  locktime: number
+  vin: {
+    txid: string
+    vout: number
+    scriptSig: Object
     sequence: number
-  }],
-  vout:
-  [{ value: number, n: number, scriptPubKey: Object },
-    { value: number, n: number, scriptPubKey: Object }]
+  }[]
+  vout: {
+    value: number
+    n: number
+    scriptPubKey: Object
+  }[]
 }
