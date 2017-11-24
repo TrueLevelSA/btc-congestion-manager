@@ -65,11 +65,18 @@ const rawtxsocket$: Observable<any> =
     return () => socket.close()
   })
 
+const n = 5
 const transaction$ =
   rawtxsocket$
     .flatMap((message) => getFee(message))
-    .scan((acc, x) => [x, ...acc], [])
-// get size from acc to drop elements that are far off
+    .scan(
+    (acc, x) => acc.length < n
+      ? [x, ...acc]
+      : x > acc[-1]
+        ? [...acc.slice(0, n - 1), x]
+        : acc
+    , [])
+    // get size from acc to drop elements that are far off
 
     .map(txs =>
       txs.sort((a, b) => b.feeSatoshiPerByte - a.feeSatoshiPerByte))
@@ -97,7 +104,7 @@ const mempuller$ =
 //   )).mergeAll())
 
 transaction$
-  .subscribe(console.log)
+  .subscribe((x) => console.log('\n\nnew\n\n\n', x))
 // .combineLatest(mempuller$, (txs, txids) => txs.map)
 // mempool$.combineAll()
 
