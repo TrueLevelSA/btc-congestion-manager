@@ -17,8 +17,8 @@ const getFee = (tx_bytes: Buffer) =>
   Observable.of(Transaction.fromBuffer(tx_bytes))
     .map(tx => ({
       txid: tx.getId(),
-      size: tx.byteLength(),
-      rbf: tx.ins.every(y => y.sequence < 0xffffffff - 1), 
+      byteLength: tx.byteLength(),
+      rbf: tx.ins.every(y => y.sequence < 0xffffffff - 1),
       ins: tx.ins.map(y => ({
         prev_txid: reverse(y.hash).toString('hex'),
         prev_index: y.index,
@@ -39,10 +39,10 @@ const getFee = (tx_bytes: Buffer) =>
           .reduce((acc2, y) => y + acc2, 0)
           .flatMap(z => acc1.map(a => a + z)), Observable.of(0))
         .map(prev_value => ({
-          feeSatoshiPerByte: (prev_value - curr.value) / curr.size,
+          feeRate: (prev_value - curr.value) / curr.byteLength,
           txid: curr.txid,
           rbf: curr.rbf,
-          size: curr.size,
+          size: curr.byteLength,
           prev_txids: curr.ins.map(x => x.prev_txid),
         })))
     .retryWhen(errors => errors.delay(5000))
@@ -74,12 +74,12 @@ const transaction$ =
     .flatMap((message) => getFee(message))
     .scan((acc, x) => (acc.length < n
       ? [x, ...acc]
-      : (x.feeSatoshiPerByte > acc[n - 1].feeSatoshiPerByte
+      : (x.feeRate > acc[n - 1].feeRate
         ? [x, ...acc.slice(0, n - 1)]
         : acc)), [])
     .distinctUntilChanged()
     .map(txs =>
-      txs.sort((a, b) => b.feeSatoshiPerByte - a.feeSatoshiPerByte))
+      txs.sort((a, b) => b.feeRate - a.feeRate))
 
 // flatMap mempool_node$ here
 
@@ -91,7 +91,9 @@ const mempool_node$: Observable<string[]> = Observable.fromPromise(
 
 // TODO: merge this observable to one that emits when a new block arrives
 const mempuller$ = Observable.timer(0, 5000)
-  .flatMap((_) => mempool_node$)
+    .flatMap((_) => mempool_node$)
+    .distinctUntilChanged()
+
 // .flatMap(txids => txids
 //   .map(txid => transactions$
 //     .filter(tx => tx.txid === txid)
