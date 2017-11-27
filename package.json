@@ -14,15 +14,10 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@types/bitcoinjs-lib": "^3.0.5",
+    "@types/lodash": "^4.14.85",
     "@types/node": "^8.0.53",
-    "@types/zeromq": "^4.5.3",
-    "bcoin": "^1.0.0-beta.15",
     "bitcoin-core": "^1.2.0",
-    "bitcoinjs-lib": "^3.3.0",
-    "blockchain.info": "^2.10.1",
-    "buffer-reverse": "^1.0.1",
-    "rxjs": "^5.5.2",
-    "zeromq": "^4.6.0"
+    "lodash": "^4.17.4",
+    "rxjs": "^5.5.2"
   }
 }
