@@ -13,12 +13,12 @@ const rpc =
 
 const blockSize = 1e6
 
-const sortByFee = (mempool, cumSize = 0, targetBlock = 0, n = 1) =>
-  Object.keys(mempool)
+const sortByFee = (txs: MempoolTx[], cumSize = 0, targetBlock = 1, n = 1) =>
+  Object.keys(txs)
     .map((txid) => ({
       txid,
-      satPerByte: 1e8 * mempool[txid].fee / mempool[txid].size,
-      ...mempool[txid],
+      satPerByte: 1e8 * txs[txid].fee / txs[txid].size,
+      ...txs[txid],
     }))
     .sort((a, b) => b.feeRate - a.feeRate)
     .map(tx => {
@@ -27,22 +27,40 @@ const sortByFee = (mempool, cumSize = 0, targetBlock = 0, n = 1) =>
         targetBlock += 1
         n += 1
       }
-      return { ...tx, cumSize, targetBlock }
+      return Observable.of({ ...tx, cumSize, targetBlock })
     })
 
+const memPuller$ = Observable.timer(0, 5000)
+  .flatMap((_): Observable<MempoolTx[]> =>
+    Observable.fromPromise(rpc.getRawMemPool(true)))
+  .scan((x, y) => !isEqual(x, y) ? y : x)
+  .distinctUntilChanged()
+  .flatMap(txs => sortByFee(txs))
+  .mergeAll()
 
-const listenMemPool = (prevMempool: any = {}, sortPrevMempool: any = {}) =>
-  Observable.timer(0, 5000)
-    .flatMap(_ => Observable.fromPromise(rpc.getRawMemPool(true)))
-    .filter(mempool => !isEqual(mempool, prevMempool))
-    .flatMap((mempool) => {
-      prevMempool = mempool
-      sortPrevMempool = sortByFee(mempool)
-      return sortPrevMempool
-    }).retryWhen(errors => errors.delay(10000))
-
-
-listenMemPool().subscribe(
+memPuller$
+  .retryWhen(errors => errors.delay(10000))
+  .subscribe(
   (x) => console.dir(x),
   console.error,
   () => console.log('finished'))
+
+
+interface MempoolTx {
+  txid: string
+  satPerByte: number
+  size: number
+  fee: number
+  modifiedfee: number
+  time: number
+  height: number
+  descendantcount: number
+  descendantsize: number
+  descendantfees: number
+  ancestorcount: number
+  ancestorsize: number
+  ancestorfees: number
+  depends: any[]
+  cumSize: number
+  targetBlock: number
+}
