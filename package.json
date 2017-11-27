@@ -17,6 +17,7 @@
     "@types/bitcoinjs-lib": "^3.0.5",
     "@types/node": "^8.0.53",
     "@types/zeromq": "^4.5.3",
+    "bcoin": "^1.0.0-beta.15",
     "bitcoin-core": "^1.2.0",
     "bitcoinjs-lib": "^3.3.0",
     "blockchain.info": "^2.10.1",

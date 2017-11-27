@@ -2,6 +2,9 @@ import { socket as Socket } from 'zeromq'
 import { Transaction } from 'bitcoinjs-lib'
 import * as RpcClient from 'bitcoin-core'
 import { Observable, Subscriber } from 'rxjs'
+import * as bcoin from 'bcoin'
+
+
 const reverse: (b: Buffer) => Buffer = require("buffer-reverse")
 
 const host = process.env.RPC_HOST || '127.0.0.1'
