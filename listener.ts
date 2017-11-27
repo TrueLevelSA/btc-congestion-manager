@@ -39,7 +39,7 @@ const listenMemPool = (prevMempool: any = {}, sortPrevMempool: any = {}) =>
       prevMempool = mempool
       sortPrevMempool = sortByFee(mempool)
       return sortPrevMempool
-    })
+    }).retryWhen(errors => errors.delay(10000))
 
 
 listenMemPool().subscribe(
