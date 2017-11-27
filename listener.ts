@@ -13,12 +13,12 @@ const rpc =
 
 const blockSize = 1e6
 
-const sortByFee = (txs: MempoolTx[], cumSize = 0, targetBlock = 1, n = 1) =>
+const sortByFee = (txs, cumSize = 0, targetBlock = 1, n = 1) =>
   Object.keys(txs)
     .map((txid) => ({
-      txid,
-      satPerByte: 1e8 * txs[txid].fee / txs[txid].size,
       ...txs[txid],
+      txid,
+      satPerByte: txs[txid].descendantfees / txs[txid].descendantsize,
     }))
     .sort((a, b) => b.feeRate - a.feeRate)
     .map(tx => {
@@ -27,7 +27,7 @@ const sortByFee = (txs: MempoolTx[], cumSize = 0, targetBlock = 1, n = 1) =>
         targetBlock += 1
         n += 1
       }
-      return Observable.of({ ...tx, cumSize, targetBlock })
+      return { ...tx, cumSize, targetBlock }
     })
 
 const memPuller$ = Observable.timer(0, 5000)
@@ -36,7 +36,6 @@ const memPuller$ = Observable.timer(0, 5000)
   .scan((x, y) => !isEqual(x, y) ? y : x)
   .distinctUntilChanged()
   .flatMap(txs => sortByFee(txs))
-  .mergeAll()
 
 memPuller$
   .retryWhen(errors => errors.delay(10000))
@@ -60,7 +59,7 @@ interface MempoolTx {
   ancestorcount: number
   ancestorsize: number
   ancestorfees: number
-  depends: any[]
+  depends: string[]
   cumSize: number
   targetBlock: number
 }
