@@ -11,7 +11,7 @@ const rpc =
     password: 'test',
   })
 
-const blockSize = 1e6
+const blockWeight = 4e6
 
 const sortByFee = (txs, cumSize = 0, targetBlock = 1, n = 1) =>
   Object.keys(txs)
@@ -23,11 +23,11 @@ const sortByFee = (txs, cumSize = 0, targetBlock = 1, n = 1) =>
     .sort((a, b) => b.feeRate - a.feeRate)
     .map(tx => {
       cumSize += tx.size
-      if (cumSize > n * blockSize) {
+      if (cumSize > n * blockWeight) {
         targetBlock += 1
         n += 1
       }
-      return { ...tx, cumSize, targetBlock }
+      return { ...tx, cumSize, targetBlock } as MempoolTx
     })
 
 const memPuller$ = Observable.timer(0, 5000)
@@ -47,7 +47,7 @@ memPuller$
 
 interface MempoolTx {
   txid: string
-  satPerByte: number
+  feeIndex: number
   size: number
   fee: number
   modifiedfee: number
