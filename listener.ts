@@ -1,6 +1,6 @@
 import * as RpcClient from 'bitcoin-core'
 import { Observable } from 'rxjs'
-import { isEqual } from 'lodash'
+import { isEqual, differenceWith } from 'lodash'
 
 const host = process.env.RPC_HOST || '127.0.0.1'
 const rpc =
@@ -35,14 +35,22 @@ const memPuller$ = Observable.timer(0, 5000)
     Observable.fromPromise(rpc.getRawMemPool(true)))
   .scan((x, y) => !isEqual(x, y) ? y : x)
   .distinctUntilChanged()
-  .flatMap(txs => sortByFee(txs))
+  .map(txs => sortByFee(txs))
+  .share()
 
-memPuller$
-  .retryWhen(errors => errors.delay(10000))
+const diffMempool$ = memPuller$.scan((x: MempoolTx[], y: MempoolTx[]) =>
+  differenceWith(x, y, isEqual))
+
+diffMempool$
+  .retryWhen(err => {
+    console.log(err)
+    return err.delay(10000)
+  })
   .subscribe(
   (x) => console.dir(x),
   console.error,
   () => console.log('finished'))
+
 
 
 interface MempoolTx {
