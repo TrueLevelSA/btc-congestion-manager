@@ -3,7 +3,12 @@ import { Observable, Subscriber } from 'rxjs'
 import { isEqual, differenceBy } from 'lodash'
 import { socket } from 'zeromq'
 
+const intTimeAdded = 30 // min
+const timeRes = 10e3; // 10 s
+// const intTimeRemoved = 30 // min
+
 const host = process.env.RPC_HOST || '127.0.0.1'
+
 const rpc =
   new RpcClient({
     host,
@@ -33,6 +38,7 @@ export const blockHashSocket$: Observable<Buffer> =
   })
 
 export const blockHash$ = blockHashSocket$.share()
+// const blockHash$ = Observable.timer(0, 10000)
 
 const interBlockInterval$ =
   blockHash$
@@ -43,12 +49,12 @@ const interBlockInterval$ =
 
 export const sortByFee = (txs, cumSize = 0, targetBlock = 1, n = 1) =>
   Object.keys(txs)
-    .map((txid) => ({
+    .map((txid): MempoolTx => ({
       ...txs[txid],
       txid,
-      feeIndex: txs[txid].descendantfees / txs[txid].descendantsize,
+      feeWeight: txs[txid].descendantfees / txs[txid].descendantsize,
     }))
-    .sort((a, b) => b.feeRate - a.feeRate)
+    .sort((a, b) => b.feeWeight - a.feeWeight)
     .map(tx => {
       cumSize += tx.size
       if (cumSize > n * blockWeight) {
@@ -58,7 +64,7 @@ export const sortByFee = (txs, cumSize = 0, targetBlock = 1, n = 1) =>
       return { ...tx, cumSize, targetBlock } as MempoolTx
     })
 
-export const memPooler$ = Observable.timer(0, 10000)
+export const memPooler$ = Observable.timer(0, 10e3)
   .merge(blockHash$)
   .flatMap((_): Observable<MempoolTx[]> =>
     Observable.fromPromise(rpc.getRawMemPool(true)))
@@ -67,80 +73,83 @@ export const memPooler$ = Observable.timer(0, 10000)
   .map(txs => sortByFee(txs))
   .share()
 
-// time moving array containing the last 2 MempoolTx[]
-export const last2Mempool$ = memPooler$
-  .bufferCount(2, 1)
-  .share()
 
-export const addedTxs$ = last2Mempool$
-  .map(xs =>
-    differenceBy(xs[1], xs[0], 'txid'))
-  .share()
+// time moving array containing the last 2 MempoolTx[]
+export const last2Mempool$ =
+  memPooler$
+    .bufferCount(2, 1)
+    .share()
+
+export const addedTxs$ =
+  last2Mempool$
+    .flatMap(txs => differenceBy(txs[1], txs[0], 'txid'))
+    .share()
 
 export const removedTxs$ =
   last2Mempool$
-    .map(xs =>
-      differenceBy(xs[0], xs[1], 'txid'))
+    .flatMap(txs => differenceBy(txs[0], txs[1], 'txid'))
     .share()
 
-const intTimeAdded = 5 // min
-// const intTimeRemoved = 30 // min
-const timeRes = 1e3; // 1 s
-
-export const bufferAdded$ = addedTxs$
-  .bufferTime(intTimeAdded * 60e3, timeRes)
-  .share()
-// .shareReplay(undefined, 60 * 60e3)
+export const bufferAdded$ =
+  addedTxs$
+    .bufferTime(intTimeAdded * 60e3, timeRes)
+    .share()
 
 // buffer all txs until next block mined
-export const bufferRemoved$ = removedTxs$
-  .buffer(blockHash$.delay(10e3)) // delay so that memPooler$ can update first
-  .combineLatest(interBlockInterval$, (txss, interBlockInterval) =>
-    ({ txss, interBlockInterval }))
-  .do((x) => console.log('bufferRemove interval in min', x.interBlockInterval / 60e3))
-  .share()
-// .shareReplay(undefined, 60 * 60e3)
+export const bufferRemoved$ =
+  removedTxs$
+    .buffer(blockHash$.delay(10e3)) // delay so that memPooler$ can update first
+    .withLatestFrom(interBlockInterval$, (txs, ibi) =>
+      ({ txs, ibi }))
+    .bufferCount(6, 1)
+    .map(x => x.reduce((acc, y) =>
+      ({
+        ibi: y.ibi + acc.ibi,
+        txs: [...acc.txs, ...y.txs]
+      }),
+      { ibi: 0, txs: [] }))
+    // .do(_ => console.log('emited'))
 
 // returns bytes added to mempool / 10 min ahead of targetBlock
 export const addedBytesAheadTargetPer10min = (targetBlock: number) =>
   bufferAdded$
-    .map(txss => txss // MempoolTx[][]
-      .map(txs => txs // MempoolTx[]
-        .filter(tx => tx.cumSize < targetBlock * blockWeight)
-        .reduce((acc, tx) => acc + tx.size, 0))
-      .reduce((acc, x) => acc + x, 0))
+    .map(txs => txs // MempoolTx[]
+      .filter(tx => tx.cumSize < targetBlock * blockWeight)
+      .reduce((acc, tx) => acc + tx.size, 0))
     .map(x => (x / intTimeAdded) * 10) // per 10 min per B
     .distinctUntilChanged()
 
 export const removedBytesAheadTargetPer10min = (targetBlock: number) =>
   bufferRemoved$
-    .map(txss => txss.txss
-      // .filter(txs => txs.length > 500) // proxy to removal due to mining
-      .map(txs => txs
-        .filter(tx => tx.cumSize < targetBlock * blockWeight)
-        .reduce((acc, tx) => acc + tx.size, 0))
-      .reduce((acc, x) => acc.map(y => x + y), Observable.of(0))
-      .map(acc => ({ acc, interBlockInterval: txss.interBlockInterval })))
-    .flatMap(x => x)
-    .map(x => x.acc / (x.interBlockInterval / 60e3) * 10)
-    .do(x => console.log('removedBytesAheadTargetPer10min in MB per 10 min', x / 1e6))
+    .map(i => i.txs
+      .filter(tx => tx.cumSize < targetBlock * blockWeight)
+      .reduce((acc, tx) => ({
+        ...acc,
+        value: tx.size + acc.value,
+      }),
+      {
+        value: 0,
+        ibi: i.ibi
+      }))
+    .map(x => x.value / (x.ibi / 60e3) * 10)
     .distinctUntilChanged()
 
 // mempool growth velocity in MB / 10 min ahead of targetBlock
 export const velocity = (targetBlock: number) =>
   Observable.combineLatest(
     addedBytesAheadTargetPer10min(targetBlock),
-    removedBytesAheadTargetPer10min(targetBlock)
-  ).map(x => (x[0] - x[1]) / 1e6)
+    removedBytesAheadTargetPer10min(targetBlock))
+    .map(x => (x[0] - x[1]) / 1e6)
 
-const initialEstimate = (targetBlock: number) => memPooler$.last()
-  .map(txs => txs.find(tx => tx.targetBlock === targetBlock))
-  .filter(tx => tx !== undefined)
-  .map((tx: MempoolTx) => ({
-    feeIndex: tx.feeIndex,
-    cumSize: tx.cumSize,
-    targetBlock: tx.targetBlock
-  }))
+// const initialEstimate = (targetBlock: number) =>
+//   memPooler$.last()
+//     .map(txs => txs.find(tx => tx.targetBlock === targetBlock))
+//     .filter(tx => tx !== undefined)
+//     .map((tx: MempoolTx) => ({
+//       feeIndex: tx.feeIndex,
+//       cumSize: tx.cumSize,
+//       targetBlock: tx.targetBlock
+//     }))
 
 // const res = 200 / blockWeight
 // const getFee = (targetBlock: number) =>
@@ -219,8 +228,6 @@ velocity(3)
 
 
 interface MempoolTx {
-  txid: string
-  feeIndex: number
   size: number
   fee: number
   modifiedfee: number
@@ -233,6 +240,8 @@ interface MempoolTx {
   ancestorsize: number
   ancestorfees: number
   depends: string[]
+  txid: string
+  feeWeight: number
   cumSize: number
   targetBlock: number
 }
