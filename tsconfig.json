@@ -11,15 +11,12 @@
         "experimentalDecorators": true,
         "strictNullChecks": true,
         "target": "ES6",
-        "lib": ["ES6"],
+        "lib": ["ES6", "DOM"],
         "typeRoots": [
             "./node_modules/@types"
         ]
     },
     "include": [
-        "*.ts",
-        "models/*.ts",
-        "types.d.ts",
-        "./node_modules/types-ethereumjs-util/index.d.ts"
+        "*.ts"
     ]
 }
