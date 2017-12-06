@@ -1,12 +1,16 @@
 import { argv } from 'yargs'
 import * as RpcClient from 'bitcoin-core'
 import { Observable, Subscriber } from 'rxjs'
-import { isEqual, differenceBy, minBy } from 'lodash'
+import { isEqual, differenceBy, minBy, sumBy, isEmpty, meanBy } from 'lodash'
 import { socket } from 'zeromq'
+import { Client } from 'thruway.js'
+// import { MempoolTx, intTimeAdded, timeRes } from './buffered'
 
-const intTimeAdded = 30 // min
-const timeRes = 10e+3; // 10 s
-// const intTimeRemoved = 30 // min
+const wamp = new Client('ws://localhost:8080/ws', 'realm1')
+
+export const intTimeAdded = 30 * 60e+3 // 30 min
+export const timeRes = 30e+3; // 10 s
+export const blockWeight = 1e+6
 
 const host = process.env.RPC_HOST || '127.0.0.1'
 
@@ -17,8 +21,6 @@ const rpc =
     username: 'test',
     password: 'test',
   })
-
-export const blockWeight = 4e+6
 
 export const blockHashSocket$: Observable<Buffer> =
   Observable.create((subscriber: Subscriber<any>) => {
@@ -40,13 +42,17 @@ export const blockHashSocket$: Observable<Buffer> =
 
 export const blockHash$ = blockHashSocket$.share()
 // const blockHash$ = Observable.timer(0, 10000)
+// wamp.publish('com.buffered.blockhash', blockHash$);
 
 const interBlockInterval$ =
   blockHash$
     .timeInterval()
     .map(x => x.interval)
+    .do(_ => console.log('\n--------------------'))
     .do(t => console.log(`new block found after ${t / 60e+3} minutes`))
+    .do(_ => console.log('--------------------\n'))
     .share()
+// wamp.publish('com.buffered.interblockinterval', interBlockInterval$);
 
 export const sortByFee = (txs, cumSize = 0, targetBlock = 1, n = 1) =>
   Object.keys(txs)
@@ -65,15 +71,17 @@ export const sortByFee = (txs, cumSize = 0, targetBlock = 1, n = 1) =>
       return { ...tx, cumSize, targetBlock } as MempoolTx
     })
 
-export const memPooler$ = Observable.timer(0, 10e+3)
-  .merge(blockHash$) // run when new block found
-  .flatMap((_): Observable<MempoolTx[]> =>
-    Observable.fromPromise(rpc.getRawMemPool(true)))
-  .scan((x, y) => !isEqual(x, y) ? y : x)
-  .distinctUntilChanged()
-  .map(txs => sortByFee(txs))
-  .share()
+export const memPooler$ =
+  Observable.timer(0, 30e+3)
+    .merge(blockHash$) // run when new block found
+    .flatMap((_): Observable<MempoolTx[]> =>
+      Observable.fromPromise(rpc.getRawMemPool(true)))
+    .scan((x, y) => !isEqual(x, y) ? y : x)
+    .distinctUntilChanged()
+    .map(txs => sortByFee(txs))
+    .share()
 
+// wamp.publish('com.buffered.mempooler$', memPooler$);
 
 // time moving array containing the last 2 MempoolTx[]
 export const last2Mempools$ =
@@ -81,35 +89,117 @@ export const last2Mempools$ =
     .bufferCount(2, 1)
     .share()
 
+// wamp.publish('com.buffered.last2mempools$', last2Mempools$);
+
 export const addedTxs$ =
   last2Mempools$
     .flatMap(txs => differenceBy(txs[1], txs[0], 'txid'))
     .share()
 
-export const removedTxs$ =
+// wamp.publish('com.buffered.addedtxs$', addedTxs$)
+
+const removedTxsShared$ =
   last2Mempools$
-    .flatMap(txs => differenceBy(txs[0], txs[1], 'txid'))
+    .map(txs => differenceBy(txs[0], txs[1], 'txid'))
     .share()
+
+export const removedTxs$ =
+  removedTxsShared$.flatMap(x => x)
+    .share()
+
+export const minedTxs$ =
+  removedTxsShared$
+    .filter(txs => txs.length > 500)
+    .withLatestFrom(interBlockInterval$, (x, ibi) => ({ ibi, mempool: x }))
+    .timestamp()
+    .map(x => x.value.mempool.map(y => ({ ...y, timestamp: x.timestamp, ibi: x.value.ibi }))
+      .sort((a, b) => b.feeWeightPerByte - a.feeWeightPerByte))
+    .share() // share last 6 blocks
+// min quantile of a sorted list
+const minQuant = (xs: any[], quantile: number) =>
+  xs.filter((_, i) => i > xs.length * (1 - quantile))
+
+export const minedTxsSummary$ =
+  minedTxs$
+    .do(x => console.log(`mined ${x.length} txs at ${new Date(x[0].timestamp)}`))
+    // .map(x => ({ ...x.value, interval: x.interval }))
+    .map(x => ({
+      ibi: x[0].ibi / 60e+3,
+      date: new Date(x[0].timestamp),
+      txs: x.length,
+      blockSize: sumBy(x, 'size') / 1e6,
+      timestamp: x[0].timestamp,
+      fee: {
+        [0.100]: meanBy(minQuant(x, 0.100), 'feeWeightPerByte'),
+        [0.050]: meanBy(minQuant(x, 0.050), 'feeWeightPerByte'),
+        [0.010]: meanBy(minQuant(x, 0.010), 'feeWeightPerByte'),
+        [0.005]: meanBy(minQuant(x, 0.005), 'feeWeightPerByte'),
+        [0.001]: meanBy(minQuant(x, 0.001), 'feeWeightPerByte'),
+        minFeeTx: minBy(x, 'feeWeightPerByte')
+      }
+    }))
+    // .do(x => console.log(`block size: ${sumBy(x, 'size')}`))
+    .do(_ => console.log('-----------------------------\n'))
 
 export const bufferAdded$ =
   addedTxs$
-    .bufferTime(intTimeAdded * 60e+3, timeRes)
+    .bufferTime(intTimeAdded, timeRes)
     .share()
+
+// wamp.publish('com.buffered.bufferadded$', bufferAdded$)
 
 // buffer all txs until next block mined
 export const bufferRemoved$ =
   removedTxs$
     .buffer(blockHash$.delay(10e+3)) // delay so that memPooler$ can update first
-    .combineLatest(interBlockInterval$, (txs, ibi) =>
+    .withLatestFrom(interBlockInterval$, (txs, ibi) =>
       ({ txs, ibi }))
-    .bufferCount(4, 1)
+    .bufferCount(6, 1)
     .map(x => x.reduce((acc, y) =>
       ({
         ibi: y.ibi + acc.ibi,
         txs: [...acc.txs, ...y.txs]
       }),
       { ibi: 0, txs: [] }))
-// .do(_ => console.log('emited'))
+    .share()
+
+// wamp.publish('com.buffered.bufferremoved$', bufferRemoved$)
+
+
+// const wamp = new Client('ws://localhost:8080/ws', 'realm1')
+
+// export const blockWeight = 4e+6
+
+// const blockHash$ = wamp.topic('com.buffered.blockhash')
+//   .flatMap(x => x.args)
+
+// const interBlockInterval$ = wamp.topic('com.buffered.interblockinterval$')
+//   .flatMap(x => x.args)
+
+// const memPooler$: Observable<MempoolTx[]> =
+//   wamp.topic('com.buffered.mempooler$')
+//     .flatMap(x => x.args)
+
+// const last2Mempools$ = wamp.topic('com.buffered.last2mempools$')
+//   .flatMap(x => x.args)
+
+// const addedTxs$ = wamp.topic('com.buffered.addedtxs$')
+//   .flatMap(x => x.args)
+
+// const removedTxs$ = wamp.topic('com.buffered.removedtxs$')
+//   .flatMap(x => x.args)
+
+// const bufferAdded$: Observable<MempoolTx[]> =
+//   wamp.topic('com.buffered.bufferadded$')
+//     .flatMap(x => x.args)
+
+// const bufferRemoved$: Observable<{ txs: MempoolTx[], ibi: number }> =
+//   wamp.topic('com.buffered.bufferremoved$')
+//     .flatMap(x => x.args)
+
+// const minedTxs$: Observable<{ txid: string, timestamp: number }[]> =
+//   wamp.topic('com.buffered.minedtxs$')
+//     .flatMap(x => x.args)
 
 // returns bytes added to mempool / 10 min ahead of targetBlock
 export const addedBytesAheadTargetPer10min = (targetBlock: number) =>
@@ -117,13 +207,13 @@ export const addedBytesAheadTargetPer10min = (targetBlock: number) =>
     .map(txs => txs
       .filter(tx => tx.cumSize < targetBlock * blockWeight)
       .reduce((acc, tx) => acc + tx.size, 0))
-    .map(x => (x / intTimeAdded) * 10) // per 10 min per B
+    .map(x => (x / intTimeAdded) * 10 * 60e+3) // per 10 min per B
     .distinctUntilChanged()
     .do(x => console.log(`add velocity ${x / 1e+6} MW/10min`))
 
 export const removedBytesAheadTargetPer10min = (targetBlock: number) =>
   bufferRemoved$
-    .map(i => i.txs
+    .map(x => x.txs
       .filter(tx => tx.cumSize < targetBlock * blockWeight)
       .reduce((acc, tx) => ({
         ...acc,
@@ -131,7 +221,7 @@ export const removedBytesAheadTargetPer10min = (targetBlock: number) =>
       }),
       {
         value: 0,
-        ibi: i.ibi
+        ibi: x.ibi
       }))
     .map(x => x.value / (x.ibi / 60e+3) * 10)
     .distinctUntilChanged()
@@ -149,10 +239,11 @@ export const velocity = (targetBlock: number) =>
     .map(x => ({ ...x.value, now: x.timestamp }))
     .map(x => {
       // const minsFromLastBlock = (x.now - x.rmtimestamp) / 60e3
-      // const remV = (x.rmV / 10) * (10 + minsfromlastblock)
-      const remV = x.rmV
-      return (x.addV - remV) // B / 10 min
+      // const rmV = (x.rmV / 10) * (10 + minsFromLastBlock)
+      // const rmV = x.rmV
+      return (x.addV - x.rmV) // B / 10 min
     })
+    .distinctUntilChanged()
     .do(x => console.log(`velocity ${x / 1e+6} MW/10min`))
 
 export const desiredPosition = (targetBlock: number) =>
@@ -167,18 +258,113 @@ export const initialPosition = (targetBlock: number) =>
     desiredPosition(targetBlock),
     velocity(targetBlock),
     (x, v) => x - v * targetBlock)
+    .distinctUntilChanged()
     .do((x) => console.log(`initialPosition ${x / 1e+6} MW`))
 
-export const getFee = (targetBlock: number) =>
+export const getFeeTx = (targetBlock: number) =>
   initialPosition(targetBlock)
     .combineLatest(memPooler$, (pos, txs) => ({ pos, txs }))
     .map(x => x.txs
       .map(tx => ({ ...tx, distance: Math.abs(tx.cumSize - x.pos) })))
     .map(x => minBy(x, y => y.distance))
     .filter(x => x !== undefined)
-    .map((x: MempoolTx & { distance: number }) => x.feeWeightPerByte)
-    .do((x) => console.log(`getFee ${x} satoshi/B`))
+    .share()
 
+// export const estimateConfBlock = (feeRate: number) =>
+//   memPooler$
+//     .map(txs => txs
+//       .map(tx => ({ ...tx, distance: Math.abs(tx.cumSize - x.pos) })))
+// .map(x => x)
+
+export const getFee = (targetBlock: number) =>
+  getFeeTx(targetBlock)
+    .map((x: MempoolTx & { distance: number }) => x.feeWeightPerByte)
+    .timestamp()
+    .map(x => ({
+      feeWeightPerByte: x.value,
+      timestamp: x.timestamp,
+      date: new Date(x.timestamp),
+      targetBlock,
+    }))
+    .do((x) => console.log(`getFee ${x.targetBlock} = ${x.feeWeightPerByte} satoshi/W @ ${new Date(x.timestamp)}`))
+    .do(_ => console.log('--------------------'))
+
+const bufferedMinedTxs$ =
+  minedTxs$.bufferTime(60e+3, 1e+3)
+    .flatMap(x => x)
+    .distinctUntilChanged()
+    .share()
+
+wamp.publish('com.buffered.getfee6', getFee(6))
+wamp.publish('com.buffered.getfee5', getFee(5))
+wamp.publish('com.buffered.getfee4', getFee(4))
+wamp.publish('com.buffered.getfee3', getFee(3))
+wamp.publish('com.buffered.getfee2', getFee(2))
+wamp.publish('com.buffered.getfee1', getFee(1))
+wamp.publish('com.buffered.minedtxssummary', minedTxsSummary$)
+
+
+// getFee(6).combineLatest(getFee(5), getFee(4), getFee(3), getFee(2), getFee(1), (x, y, z, i, j) => )
+
+// export const errorFun = (targetBlock: number, counts = 60, res = 60e+3) =>
+//   Observable.timer(0, res)
+//     .flatMap(_ => getFeeTx(targetBlock).last())
+//     .timestamp()
+//     .bufferCount(counts, res)
+//     .map((x) => x
+//       .filter(y => y !== undefined)
+//       .map(y => ({
+//         ...y.value,
+//         timestamp: y.timestamp
+//       }))
+//       .map((z: MempoolTx & { distance: number; timestamp: number }) =>
+//         ({
+//           txid: z.txid,
+//           timestamp: z.timestamp + targetBlock * 10 * 60e+3
+//         })))
+//     .withLatestFrom(bufferedMinedTxs$, (predicted, mined) => mined
+//       .map(m => predicted
+//         .filter(p => p.txid === m.txid)
+//         .map(x => ({
+//           txid: m.txid,
+//           predicted: x.timestamp,
+//           mined: m.timestamp
+//         }))))
+//     .flatMap(x => x)
+//     .do(x => x.map(y =>
+//       console.log(`txid: ${y.txid}, predicted: ${y.predicted / (10 * 60e+3)}, mined: ${y.mined / (10 * 60e+3)}, difference: ${(y.predicted - y.mined) / (10 * 60e+3)}, mining success rate: ${counts / x.length}`)))
+//     .flatMap(x => x.map(y => ({
+//       timeError: y.predicted - y.mined,
+//       successRate: counts / x.length
+//     })))
+//     .bufferTime(counts * res, res)
+//     .map(x => x.map(y => ({
+//       timeError: y.timeError / (10 * 60e+3),
+//       successRate: y.successRate
+//     })))
+//     .filter(x => !isEmpty(x))
+//     .map(x => ({
+//       timeError: ci(x, 'timeError'),
+//       successRate: ci(x, 'successRate')
+//     }))
+//     .do(x => console.log(`95% CI per 10 min based on past hour's data`))
+//     .do(x => console.dir(x))
+
+// const mean = (xs: number[]) =>
+//   xs.reduce((acc, x) => acc + x, 0) / xs.length
+
+// const ci = (xs: object[], prop: string) => {
+//   const mean = meanBy(xs, prop)
+//   const squareErr = xs[prop]
+//     .map(x => x - mean)
+//     .map(x => x * x)
+//   const variance = meanBy(squareErr)
+//   const std = Math.sqrt(variance)
+//   const ci = 1.96 * std / xs.length
+//   return { mean, ci }
+// }
+// .sample(blockHash$.delay(10e+3))
+// .flatMap()
 // export const fee = (targetBlock: number) =>
 //   initialPosition(targetBlock)
 //     .do(x => console.log(`initialPos in fee ${x}`))
@@ -206,26 +392,22 @@ export const getFee = (targetBlock: number) =>
 //     // .distinctUntilChanged()
 //     .take(40)
 
-const args: string[] = [...argv._]
+// const args: string[] = [...argv._]
 
-const caller = (method: string, ...args) => this[method](...args)
-
-caller(args[0], ...args.slice(1))
-  .retryWhen(err => {
-    console.log(err)
-    return err.delay(10e+3)
-  })
-  .subscribe(
-  (x) => console.dir('\n--------------------------------------------------------------------------------\n'
-    + args[0] + ' '
-    + args.slice(1) + ' returns ' + x +
-    +'\n--------------------------------------------------------------------------------\n'
-  ),
-  (err) => {
-    console.error(err)
-    caller(args[0], ...args.slice(1))
-  },
-  () => console.log('finished'))
+// const caller = (method: string, ...args) => this[method](...args)
+// // interval()
+// caller(args[0], ...args.slice(1))
+//   // .retryWhen(err => {
+//   //   console.log(err)
+//   //   return err.delay(10e+3)
+//   // })
+//   .subscribe(
+//   console.log('\n------------------------------------------------------\n'),
+//   (err) => {
+//     console.error(err)
+//     caller(args[0], ...args.slice(1))
+//   },
+//   () => console.log('finished'))
 
 
 // const getFeeAsync = async (targetBlock: number) => {
@@ -270,7 +452,7 @@ caller(args[0], ...args.slice(1))
 
 
 
-interface MempoolTx {
+export interface MempoolTx {
   size: number
   fee: number
   modifiedfee: number
