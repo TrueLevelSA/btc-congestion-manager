@@ -295,12 +295,15 @@ const bufferedMinedTxs$ =
     .distinctUntilChanged()
     .share()
 
-wamp.publish('com.buffered.getfee6', getFee(6))
-wamp.publish('com.buffered.getfee5', getFee(5))
-wamp.publish('com.buffered.getfee4', getFee(4))
-wamp.publish('com.buffered.getfee3', getFee(3))
-wamp.publish('com.buffered.getfee2', getFee(2))
-wamp.publish('com.buffered.getfee1', getFee(1))
+export const range = [1, 2, 3, 4, 5, 6, 9, 12, 15, 18, 21]
+
+const fees = range
+  .map(x => {
+    const getter$ = getFee(x).share()
+    wamp.publish('com.buffered.getfee' + (x < 10) ? '0' : '' + x.toString(), getter$)
+    return getter$
+  })
+
 wamp.publish('com.buffered.minedtxssummary', minedTxsSummary$)
 
 
