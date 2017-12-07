@@ -1,20 +1,21 @@
 * bity fee selection and coin selection :bity:
-:PROPERTIES:
-:CREATED: [2017-11-21 Tue 17:45]
-:MODIFIED: [2017-11-22 Wed 02:41]
-:END:
+  :PROPERTIES:
+  :CREATED:  [2017-11-21 Tue 17:45]
+  :MODIFIED: [2017-11-22 Wed 02:41]
+  :END:
 
 ** coin utxo selection
-- maintain a set of utxos in the hot wallet that does not change the utxo-value distribution function
- https://github.com/bitcoinjs/coinselect/blob/master/stats/strategies.js
+   - maintain a set of utxos in the hot wallet that does not change the utxo-value distribution function
+     https://github.com/bitcoinjs/coinselect/blob/master/stats/strategies.js
 
 
 ** fee estimator
-- just keep track of the interval a transaction lasted at the mempool as a
-  function of fee paid per byte
-- mempool fee distribution
-- last few blocks fee distribution
-- n txs in mempool
-- rate of change of n txs in mempool
-- create time distribution functions
-- pick fees that will get txs in on average after 3 blocks, using RBF and 95% CI cumsum at say 6 blocks
+   - we rewrite $x = x_0 + vt$ into $x_0 = x - vt$, where $x_0$ is the initial
+     position [B], $x$ is the finalPosition [B], $v$ is velocity in [B/10 min]
+     and $t$ is time in [10 min]
+   - all txs are sorted according to weight of the whole branch involving all
+     its decendents
+   - we use the sorted list of txs to determin $x$. knowing $x$ and $vt$ we can
+     calculate $x_0$
+   - we look up the feeRate paid by the tx closest to where $x_0$ falls and use that feeRate
+   - to estimate velocity we calculate how many transactions are added ahead of a 
