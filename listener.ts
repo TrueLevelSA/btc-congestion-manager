@@ -1,12 +1,12 @@
 import { argv } from 'yargs'
 import * as RpcClient from 'bitcoin-core'
 import { Observable, Subscriber } from 'rxjs'
-import { isEqual, differenceBy, minBy, sumBy, isEmpty, meanBy } from 'lodash'
+import { isEqual, differenceBy, minBy, sumBy, isEmpty, meanBy, sortBy, reverse } from 'lodash'
 import { socket } from 'zeromq'
-import { Client } from 'thruway.js'
+// import { Client } from 'thruway.js'
 // import { MempoolTx, intTimeAdded, timeRes } from './buffered'
 
-const wamp = new Client('ws://localhost:8080/ws', 'realm1')
+// const wamp = new Client('ws://localhost:8080/ws', 'realm1')
 
 export const intTimeAdded = 30 * 60e+3 // 30 min
 export const timeRes = 30e+3; // 30 s
@@ -22,7 +22,7 @@ const rpc =
     password: 'test',
   })
 
-export const blockHashSocket$: Observable<Buffer> =
+export const blockHash$: Observable<Buffer> =
   Observable.create((subscriber: Subscriber<any>) => {
     const s = socket('sub')
     s.connect('tcp://localhost:28333')
@@ -38,9 +38,9 @@ export const blockHashSocket$: Observable<Buffer> =
       subscriber.complete()
     })
     return () => s.close()
-  })
+  }).share()
 
-const blockHash$ = blockHashSocket$.share()
+// const blockHash$ = blockHashSocket$.share()
 // wamp.publish('com.buffered.blockhash', blockHash$);
 const interBlockInterval$ =
   blockHash$
@@ -297,11 +297,13 @@ export const getFee = (targetBlock: number) =>
 //     .distinctUntilChanged()
 //     .share()
 
-export const range = ['01', '02', '03', '04', '05', '06', '09', '12', '15', '18', '21']
+// as string because it can be used for publishing to wamp
+// export const range = ['01', '02', '03', '04', '05', '06', '09', '12', '15', '18', '21']
+
+export const range = [1, 2, 3, 4, 5, 6, 9, 12, 15, 18, 21, 25, 30, 35, 40, 50, 60]
 
 export const fees = range
-  .map(x => getFee(Number(x)).share())
-
+  .map(x => getFee(x).share())
 // export const fees = range
 //   .map(x => {
 //     const getter$ = getFee(Number(x)).share()
@@ -311,9 +313,33 @@ export const fees = range
 
 // wamp.publish('com.buffered.minedtxssummary', minedTxsSummary$)
 
+const feeDiff$ = Observable.combineLatest(...fees)
+  .map(x => x
+    .reduce((acc, fee, i, xs) =>
+      [
+        ...acc,
+        (i > 0)
+          ? {
+            diff: (xs[i].feeRate - xs[i - 1].feeRate) / (range[i] - range[i - 1]),
+            ...fee,
+          }
+          : {
+            diff: NaN,
+            ...fee,
+          }
+      ], [])
+    .filter(x => !isNaN(x.diff)))
 
+// cost function = feeDiff / sqrt(targetBlock)
+// last value best deal
+const minDiff$ = feeDiff$
+  .flatMap(x => x
+    .sort((a, b) =>
+      b.diff / Math.sqrt(b.targetBlock)
+          - a.diff / Math.sqrt(a.targetBlock)))
 
-Observable.merge(...fees, minedTxsSummary$)
+// subscriber
+Observable.merge(minDiff$, minedTxsSummary$)
   .retryWhen(err => {
     console.error(err)
     return err.delay(20e+3)
@@ -473,6 +499,7 @@ Observable.merge(...fees, minedTxsSummary$)
 
 type MempoolTx = MempoolTxDefault & MempoolTxCustom
 
+// drop some of the fields of the default tx in order to save memory
 export interface MempoolTxDefault {
   size: number
   fee: number
