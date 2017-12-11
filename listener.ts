@@ -46,10 +46,10 @@ const interBlockInterval$ =
   blockHash$
     .timeInterval()
     .map(x => x.interval)
-    .do(_ => console.log('\n--------------------'))
-    .do(t => console.log(`new block found after ${t / 60e+3} minutes`))
-    .do(_ => console.log('--------------------\n'))
     .share()
+// .do(_ => console.log('\n--------------------'))
+// .do(t => console.log(`new block found after ${t / 60e+3} minutes`))
+// .do(_ => console.log('--------------------\n'))
 // wamp.publish('com.buffered.interblockinterval', interBlockInterval$);
 
 export const sortByFee = (txs, cumSize = 0, targetBlock = 1, n = 1) =>
@@ -123,7 +123,7 @@ const minQuant = (xs: any[], quantile: number) =>
 
 export const minedTxsSummary$ =
   minedTxs$
-    .do(x => console.log(`mined ${x.length} txs at ${new Date(x[0].timestamp)}`))
+    // .do(x => console.log(`mined ${x.length} txs at ${new Date(x[0].timestamp)}`))
     // .map(x => ({ ...x.value, interval: x.interval }))
     .map(x => ({
       ibi: x[0].ibi / 60e+3,
@@ -157,7 +157,7 @@ export const bufferRemoved$ =
     .map(tx => ({ size: tx.size, cumSize: tx.cumSize }))
     .buffer(blockHash$.delay(5e+3)) // delay so that memPooler$ can update first
     .withLatestFrom(interBlockInterval$, (txs, ibi) => ({ txs, ibi }))
-    .bufferCount(6, 1)
+    .bufferCount(6, 1) // TODO: increase 6 to probably 12
     .map(x => x.reduce((acc, y) =>
       ({
         ibi: y.ibi + acc.ibi,
@@ -212,7 +212,7 @@ export const addedBytesAheadTargetPer10min = (targetBlock: number) =>
       .reduce((acc, tx) => acc + tx.size, 0))
     .map(x => (x / intTimeAdded) * 10 * 60e+3) // per 10 min per B
     .distinctUntilChanged()
-    .do(x => console.log(`add velocity ${x / 1e+6} MW/10min`))
+// .do(x => console.log(`add velocity ahead of targetBlock ${targetBlock} is ${x / 1e+6} MW/10min`))
 
 export const removedBytesAheadTargetPer10min = (targetBlock: number) =>
   bufferRemoved$
@@ -230,7 +230,7 @@ export const removedBytesAheadTargetPer10min = (targetBlock: number) =>
     .distinctUntilChanged()
     .timestamp()
     .map(x => ({ rmV: x.value, rmtimestamp: x.timestamp }))
-    .do(x => console.log(`rm velocity ${x.rmV / 1e+6} MW/10min`))
+// .do(x => console.log(`rm velocity ${x.rmV / 1e+6} MW/10min`))
 
 // mempool growth velocity in B / 10 min ahead of targetBlock
 export const velocity = (targetBlock: number) =>
@@ -242,7 +242,7 @@ export const velocity = (targetBlock: number) =>
     .map(x => ({ ...x.value, now: x.timestamp }))
     .map(x => x.addV - x.rmV) // B / 10 min
     .distinctUntilChanged()
-    .do(x => console.log(`velocity ${x / 1e+6} MW/10min`))
+// .do(x => console.log(`velocity ahead of targetBlock ${targetBlock} is ${x / 1e+6} MW/10min`))
 
 // const minsFromLastBlock = (x.now - x.rmtimestamp) / 60e3
 // const rmV = (x.rmV / 10) * (10 + minsFromLastBlock)
@@ -260,7 +260,7 @@ export const initialPosition = (targetBlock: number) =>
     velocity(targetBlock),
     (x, v) => x - v * targetBlock)
     .distinctUntilChanged()
-    .do((x) => console.log(`initialPosition ${x / 1e+6} MW`))
+// .do((x) => console.log(`initialPosition for targetBlock ${targetBlock} ${x / 1e+6} MW`))
 
 export const getFeeTx = (targetBlock: number) =>
   initialPosition(targetBlock)
@@ -287,8 +287,8 @@ export const getFee = (targetBlock: number) =>
       date: new Date(x.timestamp),
       targetBlock,
     }))
-    .do((x) => console.log(`getFee ${x.targetBlock} = ${x.feeRate} satoshi/W @ ${new Date(x.timestamp)}`))
-    .do(_ => console.log('--------------------'))
+// .do((x) => console.log(`getFee ${x.targetBlock} = ${x.feeRate} satoshi/W @ ${new Date(x.timestamp)}`))
+// .do(_ => console.log('--------------------'))
 
 // const bufferedMinedTxs$ =
 //   minedTxs$
@@ -336,7 +336,7 @@ const minDiff$ = feeDiff$
   .flatMap(x => x
     .sort((a, b) =>
       b.diff / Math.sqrt(b.targetBlock)
-          - a.diff / Math.sqrt(a.targetBlock)))
+      - a.diff / Math.sqrt(a.targetBlock)))
 
 // subscriber
 Observable.merge(minDiff$, minedTxsSummary$)
