@@ -3,10 +3,10 @@ import * as RpcClient from 'bitcoin-core'
 import { Observable, Subscriber } from 'rxjs'
 import { isEqual, differenceBy, minBy, sumBy, isEmpty, meanBy, sortBy, reverse } from 'lodash'
 import { socket } from 'zeromq'
-// import { Client } from 'thruway.js'
+import { Client } from 'thruway.js'
 // import { MempoolTx, intTimeAdded, timeRes } from './buffered'
 
-// const wamp = new Client('ws://localhost:8080/ws', 'realm1')
+const wamp = new Client('ws://localhost:8080/ws', 'realm1')
 
 export const intTimeAdded = 30 * 60e+3 // 30 min
 export const timeRes = 30e+3; // 30 s
@@ -73,7 +73,7 @@ export const sortByFee = (txs, cumSize = 0, targetBlock = 1, n = 1) =>
     })
 
 export const memPooler$ =
-  Observable.timer(0, 30e+3)
+  Observable.timer(0, timeRes)
     .merge(blockHash$) // run when new block found
     .flatMap((_): Observable<MempoolTx[]> =>
       Observable.fromPromise(rpc.getRawMemPool(true)))
@@ -131,15 +131,16 @@ export const minedTxsSummary$ =
       txs: x.length,
       blockSize: sumBy(x, 'size') / 1e6,
       timestamp: x[0].timestamp,
-      fee: {
-        [0.100]: meanBy(minQuant(x, 0.100), 'feeRate'),
-        [0.050]: meanBy(minQuant(x, 0.050), 'feeRate'),
-        [0.010]: meanBy(minQuant(x, 0.010), 'feeRate'),
-        [0.005]: meanBy(minQuant(x, 0.005), 'feeRate'),
-        [0.001]: meanBy(minQuant(x, 0.001), 'feeRate'),
-        minFeeTx: minBy(x, 'feeRate')
-      }
+      fee: [.1, .05, .01, .005, .001]
+        .reduce((acc, y) => ({
+          ...acc,
+          [y]: meanBy(minQuant(x, y), 'feeRate')
+        }), {}),
+      minFeeTx: minBy(x, 'feeRate')
     }))
+
+wamp.publish('com.buffered.minedtxssummary', minedTxsSummary$)
+
 // .do(x => console.log(`block size: ${sumBy(x, 'size')}`))
 // .do(_ => console.log('-----------------------------\n'))
 
@@ -157,7 +158,7 @@ export const bufferRemoved$ =
     .map(tx => ({ size: tx.size, cumSize: tx.cumSize }))
     .buffer(blockHash$.delay(5e+3)) // delay so that memPooler$ can update first
     .withLatestFrom(interBlockInterval$, (txs, ibi) => ({ txs, ibi }))
-    .bufferCount(6, 1) // TODO: increase 6 to probably 12
+    .bufferCount(18, 1)
     .map(x => x.reduce((acc, y) =>
       ({
         ibi: y.ibi + acc.ibi,
@@ -169,7 +170,6 @@ export const bufferRemoved$ =
 // wamp.publish('com.buffered.bufferremoved$', bufferRemoved$)
 
 
-// const wamp = new Client('ws://localhost:8080/ws', 'realm1')
 
 // export const blockWeight = 4e+6
 
@@ -277,12 +277,14 @@ export const getFeeTx = (targetBlock: number) =>
 //       .map(tx => ({ ...tx, distance: Math.abs(tx.cumSize - x.pos) })))
 // .map(x => x)
 
+
 export const getFee = (targetBlock: number) =>
   getFeeTx(targetBlock)
     .map((x: MempoolTx & { distance: number }) => x.feeRate)
     .timestamp()
     .map(x => ({
-      feeRate: x.value,
+      // make the fee different from the base tx fee, afraid of bad minima if protocol becomes heavily used
+      feeRate: x.value * 0.999,
       timestamp: x.timestamp,
       date: new Date(x.timestamp),
       targetBlock,
@@ -300,7 +302,7 @@ export const getFee = (targetBlock: number) =>
 // as string because it can be used for publishing to wamp
 // export const range = ['01', '02', '03', '04', '05', '06', '09', '12', '15', '18', '21']
 
-export const range = [1, 2, 3, 4, 5, 6, 9, 12, 15, 18, 21, 25, 30, 35, 40, 50, 60]
+export const range = [1, 2, 3, 4]
 
 export const fees = range
   .map(x => getFee(x).share())
@@ -329,6 +331,8 @@ const feeDiff$ = Observable.combineLatest(...fees)
           }
       ], [])
     .filter(x => !isNaN(x.diff)))
+
+wamp.publish('com.buffered.feediff', feeDiff$)
 
 // cost function = feeDiff / sqrt(targetBlock)
 // last value best deal
