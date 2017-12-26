@@ -110,7 +110,7 @@ export const removedTxs$ =
 
 export const minedTxs$ =
   removedTxsShared$
-    .filter(txs => txs.length > 500) // reliable mined block proxy
+    .filter(txs => txs.length > 100) // reliable mined block proxy
     .withLatestFrom(interBlockInterval$, (mempool, ibi) => ({ ibi, mempool }))
     .timestamp()
     .map(x => x.value.mempool.map(y => ({ ...y, timestamp: x.timestamp, ibi: x.value.ibi }))
@@ -139,7 +139,7 @@ export const minedTxsSummary$ =
       minFeeTx: minBy(x, 'feeRate')
     }))
 
-wamp.publish('com.buffered.minedtxssummary', minedTxsSummary$)
+wamp.publish('com.fee.minedtxssummary', minedTxsSummary$)
 
 // .do(x => console.log(`block size: ${sumBy(x, 'size')}`))
 // .do(_ => console.log('-----------------------------\n'))
@@ -326,13 +326,13 @@ const feeDiff$ = Observable.combineLatest(...fees)
             ...fee,
           }
           : {
-            diff: NaN,
+            diff: 0,
             ...fee,
           }
       ], [])
-    .filter(x => !isNaN(x.diff)))
+    .filter(x => x.diff < 0))
 
-wamp.publish('com.buffered.feediff', feeDiff$)
+// wamp.publish('com.buffered.feediff', feeDiff$)
 
 // cost function = feeDiff / sqrt(targetBlock)
 // last value best deal
@@ -341,6 +341,8 @@ const minDiff$ = feeDiff$
     .sort((a, b) =>
       b.diff / Math.sqrt(b.targetBlock)
       - a.diff / Math.sqrt(a.targetBlock)))
+
+wamp.publish('com.fee.mindiff', minDiff$)
 
 // subscriber
 Observable.merge(minDiff$, minedTxsSummary$)
