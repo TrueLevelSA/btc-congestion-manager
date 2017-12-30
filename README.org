@@ -4,15 +4,15 @@
   :MODIFIED: [2017-11-22 Wed 02:41]
   :END:
 
-  - we rewrite \begin{equation} x = x_0 + vt \end{equation} n into $$x_0 = x -
-    vt$$, where $$x_0$$ is the initial position [B], $$x$$ is the finalPosition
-    [B], $$v$$ is velocity in [B/10 min] and $$t$$ is time in [10 min]
+  - we rewrite x = x_0 + vt into x_0 = x - vt, where $$x_0$$ is the initial
+    position [B], x is the finalPosition [B], $$v$$ is velocity in [B/10
+    min] and t is time in [10 min]
   - all txs are sorted according to weight of the whole branch involving all
     its decendents
   - we calculate how many transactions are added ahead of a target block to
     estimate velocity (estimate comes from the past hour)
   - we assume probability of finding a new block at any time is constant.
-  - we use the sorted list of txs to determing $$x$$. knowing $$x$$ and $vt$ we can
-    calculate $$x_0$$
-  - we look up the feeRate paid by the tx closest to where $$x_0$$ falls and use
+  - we use the sorted list of txs to determing x. knowing $$x$$ and $vt$ we can
+    calculate x_0
+  - we look up the feeRate paid by the tx closest to where x_0 falls and use
     that feeRate to estimate velocity.
