@@ -4,9 +4,9 @@
   :MODIFIED: [2017-11-22 Wed 02:41]
   :END:
 
-  - we rewrite $$x = x_0 + vt$$ into $$x_0 = x - vt$$, where $$x_0$$ is the initial
-    position [B], $$x$$ is the finalPosition [B], $$v$$ is velocity in [B/10 min]
-    and $$t$$ is time in [10 min]
+  - we rewrite \begin{equation} x = x_0 + vt \end{equation} n into $$x_0 = x -
+    vt$$, where $$x_0$$ is the initial position [B], $$x$$ is the finalPosition
+    [B], $$v$$ is velocity in [B/10 min] and $$t$$ is time in [10 min]
   - all txs are sorted according to weight of the whole branch involving all
     its decendents
   - we calculate how many transactions are added ahead of a target block to
