@@ -1,31 +1,22 @@
 import { argv } from 'yargs'
 import * as RpcClient from 'bitcoin-core'
 import { Observable, Subscriber } from 'rxjs'
-import { isEqual, differenceBy, minBy, sumBy, isEmpty, meanBy, sortBy, reverse } from 'lodash'
+import { isEqual, differenceBy, minBy, sumBy, meanBy } from 'lodash'
 import { socket } from 'zeromq'
 import { Client } from 'thruway.js'
+import { config } from './config'
 
-const wamp = new Client('ws://localhost:8080/ws', 'realm1')
+const wamp = new Client(config.wamp.url, config.wamp.realm)
 
-export const intTimeAdded = 30 * 60e+3 // 30 min
-export const timeRes = 30e+3; // 30 s
-export const blockSize = 1e+6
-export const minersReserve = 0.05
+const { intTimeAdded, timeRes, blockSize, minersReservedBlockRatio } =
+  config.constants
 
-const host = process.env.RPC_HOST || '127.0.0.1'
-
-const rpc =
-  new RpcClient({
-    host,
-    port: 8332,
-    username: 'test',
-    password: 'test',
-  })
+const rpc = new RpcClient(config.rpc)
 
 export const blockHash$: Observable<Buffer> =
   Observable.create((subscriber: Subscriber<any>) => {
     const s = socket('sub')
-    s.connect('tcp://localhost:28333')
+    s.connect(config.zmq_socket.url)
     s.subscribe('hashblock')
     s.monitor(10000)
     s.on('open', () => console.log('socket opened'))
@@ -46,12 +37,13 @@ const interBlockInterval$ =
     .map(x => x.interval)
     .share()
 
-export const sortByFee = (
+export const sortByFeeExp = (
   txs,
   cumSize = 0,
   targetBlock = 1,
   n = 1,
-  nextBlockThreshold = blockSize * minersReserve
+  // blockSize * Math.pow(1 - minersReservedBlockRatio, n)
+  nextBlockThreshold = blockSize * minersReservedBlockRatio
 ) =>
   Object.keys(txs)
     .map((txid) => ({
@@ -70,7 +62,27 @@ export const sortByFee = (
         n += 1
         // the pow makes predicitions in the future assume blocks are smaller,
         // compensating for the multiplicative error
-        nextBlockThreshold += blockSize * Math.pow(minersReserve, n)
+        nextBlockThreshold += blockSize * Math.pow(1 - minersReservedBlockRatio, n)
+      }
+      return { ...tx, cumSize, targetBlock }
+    })
+
+export const sortByFee = (txs, cumSize = 0, targetBlock = 1, n = 1) =>
+  Object.keys(txs)
+    .map((txid) => ({
+      size: <number>txs[txid].size,
+      fee: <number>txs[txid].fee,
+      descendantsize: <number>txs[txid].descendentsize,
+      descendantfees: <number>txs[txid].descendentfees,
+      txid,
+      feeRate: txs[txid].descendantfees / txs[txid].descendantsize,
+    }))
+    .sort((a, b) => b.feeRate - a.feeRate)
+    .map((tx): MempoolTx => {
+      cumSize += tx.size
+      if (cumSize > n * blockSize) {
+        targetBlock += 1
+        n += 1
       }
       return { ...tx, cumSize, targetBlock }
     })
@@ -96,7 +108,6 @@ export const addedTxs$ =
     .flatMap(txs => differenceBy(txs[1], txs[0], 'txid'))
 // .share()
 
-
 const removedTxsShared$ =
   last2Mempools$
     .map(txs => differenceBy(txs[0], txs[1], 'txid'))
@@ -108,7 +119,7 @@ export const removedTxs$ =
 
 export const minedTxs$ =
   removedTxsShared$
-    .filter(txs => txs.length > 100) // reliable mined block proxy
+    .filter(txs => txs.length > 500) // reliable mined block proxy
     .withLatestFrom(interBlockInterval$, (mempool, ibi) => ({ ibi, mempool }))
     .timestamp()
     .map(x => x.value.mempool.map(y => ({ ...y, timestamp: x.timestamp, ibi: x.value.ibi }))
@@ -127,7 +138,7 @@ export const minedTxsSummary$ =
       txs: x.length,
       blockSize: sumBy(x, 'size') / 1e6,
       timestamp: x[0].timestamp,
-      fee: [.1, .05, .01, .005, .001]
+      fee: [.4, .2, .1, .05, .01, .005, .001]
         .reduce((acc, y) => ({
           ...acc,
           [y]: meanBy(minQuant(x, y), 'feeRate')
@@ -241,7 +252,7 @@ export const getFee = (targetBlock: number) =>
 export const range = [1, 2, 3, 4]
 
 export const fees = range
-  .map(x => getFee(x).share())
+  .map(x => getFee(x))
 
 const feeDiff$ = Observable.combineLatest(...fees)
   .map(x => x
@@ -263,13 +274,17 @@ const feeDiff$ = Observable.combineLatest(...fees)
 
 // cost function = feeDiff / sqrt(targetBlock)
 // last value best deal
-const minDiff$ = feeDiff$
-  .flatMap(x => x
+export const minDiff$ = feeDiff$
+  .map(x => x
     .sort((a, b) =>
       b.diff / Math.sqrt(b.targetBlock)
       - a.diff / Math.sqrt(a.targetBlock)))
+  .share()
 
 wamp.publish('com.fee.mindiff', minDiff$)
+
+// useful to have a subscriber for debugging, although wamp.publish does
+// subscribe by itself
 
 // subscriber
 Observable.merge(minDiff$, minedTxsSummary$)
@@ -280,7 +295,7 @@ Observable.merge(minDiff$, minedTxsSummary$)
   .subscribe(
   x => console.dir(x),
   err => console.error(err),
-  () => console.log('finished (not implement)')
+  () => console.log('finished (not implemented)')
   )
 
 type MempoolTx = MempoolTxDefault & MempoolTxCustom
