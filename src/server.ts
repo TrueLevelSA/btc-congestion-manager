@@ -13,7 +13,7 @@ const app = express()
 app.get(
   '/',
   (req, res) => minDiff$.last()
-    .subscribe(res.send)
+    .subscribe(x => res.send(x))
 )
 
 app.listen(
