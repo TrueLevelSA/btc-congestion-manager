@@ -4,7 +4,7 @@ import { Observable, Subscriber } from 'rxjs'
 import { isEqual, differenceBy, minBy, sumBy, meanBy } from 'lodash'
 import { socket } from 'zeromq'
 import { Client } from 'thruway.js'
-import { config } from './config'
+import { config } from '../config'
 
 const wamp = new Client(config.wamp.url, config.wamp.realm)
 
