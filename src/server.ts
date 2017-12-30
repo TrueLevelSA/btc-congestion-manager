@@ -10,8 +10,6 @@ const minDiff$ = wamp.topic('com.fee.mindiff')
 
 const minDiffShare$ = minDiff$.shareReplay(1)
 
-// minDiffShare$.subscribe()
-
 const app = express()
 
 app.get(
