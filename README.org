@@ -4,8 +4,23 @@
   :MODIFIED: [2017-11-22 Wed 02:41]
   :END:
 ** requirements
-   - bitcoind full node with zmq push notifications enabled for blockhash
-     
+  - bitcoind full node with zmq push notifications enabled for blockhash
+
+**  problem
+   - given the transactions present in the mempool, find the feeRate that would
+     be placed at the end of a chosen block
+
+** diagram (2018-01-01 16:48:56)
+       0 sat/B  -143 sat/B  -159 sat/B   -18 sat/B
+         |-----------|-----------|-----------|
+         |           |           |           |
+     371 sat/B   228 sat/B    68 sat/B   50 sat/B
+         |           |           |           |
+         v           v           v           v
+|----------||----------||----------||----------|
+0MB       1MB         2MB         3MB         4MB
+   block1      block2      block3      block4
+
 ** methods
    - we rewrite x = x_0 + vt into x_0 = x - vt (eq1), where x_0 is the initial position
      [B], x is the finalPosition [B], v is velocity in [B/10 min] and t is time
