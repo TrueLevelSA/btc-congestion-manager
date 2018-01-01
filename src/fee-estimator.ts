@@ -37,36 +37,6 @@ const interBlockInterval$ =
     .map(x => x.interval)
     .share()
 
-export const sortByFeeExp = (
-  txs,
-  cumSize = 0,
-  targetBlock = 1,
-  n = 1,
-  // blockSize * Math.pow(1 - minersReservedBlockRatio, n)
-  nextBlockThreshold = blockSize * minersReservedBlockRatio
-) =>
-  Object.keys(txs)
-    .map((txid) => ({
-      size: <number>txs[txid].size,
-      fee: <number>txs[txid].fee,
-      descendantsize: <number>txs[txid].descendentsize,
-      descendantfees: <number>txs[txid].descendentfees,
-      txid,
-      feeRate: txs[txid].descendantfees / txs[txid].descendantsize,
-    }))
-    .sort((a, b) => b.feeRate - a.feeRate)
-    .map((tx): MempoolTx => {
-      cumSize += tx.size
-      if (cumSize > nextBlockThreshold) {
-        targetBlock += 1
-        n += 1
-        // the pow makes predicitions in the future assume blocks are smaller,
-        // compensating for the multiplicative error
-        nextBlockThreshold += blockSize * Math.pow(1 - minersReservedBlockRatio, n)
-      }
-      return { ...tx, cumSize, targetBlock }
-    })
-
 export const sortByFee = (txs, cumSize = 0, targetBlock = 1, n = 1) =>
   Object.keys(txs)
     .map((txid) => ({
@@ -277,8 +247,8 @@ const feeDiff$ = Observable.combineLatest(...fees)
 export const minDiff$ = feeDiff$
   .map(x => x
     .sort((a, b) =>
-      b.diff / Math.sqrt(b.targetBlock)
-      - a.diff / Math.sqrt(a.targetBlock)))
+      a.diff / Math.sqrt(a.targetBlock)
+      - b.diff / Math.sqrt(b.targetBlock)))
   .share()
 
 wamp.publish('com.fee.mindiff', minDiff$)
