@@ -239,6 +239,10 @@ const feeDiff$ = Observable.combineLatest(...fees)
             ...fee,
           }
       ], [])
+    .map((fee, _1, _2, cumDiff = 0) => {
+      cumDiff += fee.diff
+      return { ...fee, cumDiff }
+    })
     .filter(x => x.diff <= 0))
 
 
@@ -247,8 +251,8 @@ const feeDiff$ = Observable.combineLatest(...fees)
 export const minDiff$ = feeDiff$
   .map(x => x
     .sort((a, b) =>
-      a.diff / Math.sqrt(a.targetBlock)
-      - b.diff / Math.sqrt(b.targetBlock)))
+      a.cumDiff / Math.sqrt(a.targetBlock)
+      - b.cumDiff / Math.sqrt(b.targetBlock)))
   .share()
 
 wamp.publish('com.fee.mindiff', minDiff$)
