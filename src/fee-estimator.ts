@@ -240,8 +240,8 @@ const feeDiff$ = Observable.combineLatest(...fees)
       ], [])
     .filter(x => x.diff <= 0))
 
-// cost function = feeDiff / sqrt(targetBlock)
-// last value best deal
+// cost function = feeDiff / targetBlock
+// first value best deal
 export const minDiff$ = feeDiff$
   .map(x => {
     let cumDiff = 0
