@@ -1,4 +1,3 @@
-import { argv } from 'yargs'
 import * as RpcClient from 'bitcoin-core'
 import { Observable, Subscriber } from 'rxjs'
 import { isEqual, differenceBy, minBy, sumBy, meanBy } from 'lodash'
