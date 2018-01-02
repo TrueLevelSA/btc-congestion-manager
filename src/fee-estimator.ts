@@ -130,7 +130,7 @@ export const bufferRemoved$ =
     .map(tx => ({ size: tx.size, cumSize: tx.cumSize }))
     .buffer(blockHash$.delay(5e+3)) // delay so that memPooler$ can update first
     .withLatestFrom(interBlockInterval$, (txs, ibi) => ({ txs, ibi }))
-    .bufferCount(18, 1)
+    .bufferCount(config.constants.intBlocksRemoved, 1)
     .map(x => x.reduce((acc, y) =>
       ({
         ibi: y.ibi + acc.ibi,
@@ -193,7 +193,6 @@ export const initialPosition = (targetBlock: number) =>
     (x, v) => x - v * targetBlock)
     .distinctUntilChanged()
 // .do((x) => console.log(`initialPosition for targetBlock ${targetBlock} ${x / 1e+6} MW`))
-
 // find the tx in mempool closest to the estimated x_0, to observe how much it
 // pays in fees
 export const getFeeTx = (targetBlock: number) =>
@@ -219,9 +218,9 @@ export const getFee = (targetBlock: number) =>
     }))
 // .do((x) => console.log(`getFee ${x.targetBlock} = ${x.feeRate} satoshi/W @ ${new Date(x.timestamp)}`))
 
-export const range = [1, 2, 3, 4]
+const range = [1, 2, 3, 4]
 
-export const fees = range
+const fees = range
   .map(x => getFee(x))
 
 const feeDiff$ = Observable.combineLatest(...fees)
@@ -239,20 +238,24 @@ const feeDiff$ = Observable.combineLatest(...fees)
             ...fee,
           }
       ], [])
-    .map((fee, _1, _2, cumDiff = 0) => {
-      cumDiff += fee.diff
-      return { ...fee, cumDiff }
-    })
     .filter(x => x.diff <= 0))
-
 
 // cost function = feeDiff / sqrt(targetBlock)
 // last value best deal
 export const minDiff$ = feeDiff$
-  .map(x => x
-    .sort((a, b) =>
-      a.cumDiff / Math.sqrt(a.targetBlock)
-      - b.cumDiff / Math.sqrt(b.targetBlock)))
+  .map(x => {
+    let cumDiff = 0
+    return x.reduce((acc, fee) => [
+      ...acc,
+      {
+        ...fee,
+        cumDiff: cumDiff += fee.diff,
+      },
+    ], [])
+      .sort((a, b) =>
+        a.cumDiff / a.targetBlock
+        - b.cumDiff / b.targetBlock)
+  })
   .share()
 
 wamp.publish('com.fee.mindiff', minDiff$)

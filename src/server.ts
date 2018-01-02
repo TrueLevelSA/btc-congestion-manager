@@ -7,14 +7,14 @@ import { config } from '../config'
 const wamp = new Client(config.wamp.url, config.wamp.realm)
 const minDiff$ = wamp.topic('com.fee.mindiff')
   .flatMap(y => y.args)
-
-const minDiffShare$ = minDiff$.shareReplay(1)
-
+const n = 1
+const minDiffShare$ = minDiff$.shareReplay(n)
 const app = express()
 
 app.get(
   '/',
-    (req, res) => minDiffShare$.take(1)
+  (_, res) => minDiffShare$
+    .take(n)
     .subscribe(x => res.send(x))
 )
 
