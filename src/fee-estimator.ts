@@ -7,8 +7,11 @@ import { config } from '../config'
 
 const wamp = new Client(config.wamp.url, config.wamp.realm)
 
-const { intTimeAdded, timeRes, blockSize, minersReservedBlockRatio } =
-  config.constants
+const { intTimeAdded, intBlocksRemoved, timeRes } = config.constants
+
+const blockEffectiveSize =
+  config.constants.blockSize
+  * (1 - config.constants.minersReservedBlockRatio)
 
 const rpc = new RpcClient(config.rpc)
 
@@ -49,7 +52,7 @@ export const sortByFee = (txs, cumSize = 0, targetBlock = 1, n = 1) =>
     .sort((a, b) => b.feeRate - a.feeRate)
     .map((tx): MempoolTx => {
       cumSize += tx.size
-      if (cumSize > n * blockSize) {
+      if (cumSize > n * blockEffectiveSize) {
         targetBlock += 1
         n += 1
       }
@@ -58,7 +61,7 @@ export const sortByFee = (txs, cumSize = 0, targetBlock = 1, n = 1) =>
 
 export const memPooler$ =
   Observable.timer(0, timeRes)
-    .merge(blockHash$) // run when new block found
+    .merge(blockHash$) // emit when new block found
     .flatMap((_): Observable<MempoolTx[]> =>
       Observable.fromPromise(rpc.getRawMemPool(true)))
     .scan((x, y) => !isEqual(x, y) ? y : x)
@@ -75,25 +78,15 @@ export const last2Mempools$ =
 export const addedTxs$ =
   last2Mempools$
     .flatMap(txs => differenceBy(txs[1], txs[0], 'txid'))
-// .share()
 
 const removedTxsShared$ =
   last2Mempools$
     .map(txs => differenceBy(txs[0], txs[1], 'txid'))
     .share()
 
-export const removedTxs$ =
-  removedTxsShared$.flatMap(x => x)
-// .share()
-
 export const minedTxs$ =
   removedTxsShared$
     .filter(txs => txs.length > 500) // reliable mined block proxy
-    .withLatestFrom(interBlockInterval$, (mempool, ibi) => ({ ibi, mempool }))
-    .timestamp()
-    .map(x => x.value.mempool.map(y => ({ ...y, timestamp: x.timestamp, ibi: x.value.ibi }))
-      .sort((a, b) => b.feeRate - a.feeRate))
-// .share()
 
 // min quantile of a sorted list
 const minQuant = (xs: any[], quantile: number) =>
@@ -101,6 +94,10 @@ const minQuant = (xs: any[], quantile: number) =>
 
 export const minedTxsSummary$ =
   minedTxs$
+    .withLatestFrom(interBlockInterval$, (mempool, ibi) => ({ ibi, mempool }))
+    .timestamp()
+    .map(x => x.value.mempool.map(y => ({ ...y, timestamp: x.timestamp, ibi: x.value.ibi }))
+      .sort((a, b) => b.feeRate - a.feeRate))
     .map(x => ({
       ibi: x[0].ibi / 60e+3,
       date: new Date(x[0].timestamp),
@@ -108,9 +105,9 @@ export const minedTxsSummary$ =
       blockSize: sumBy(x, 'size') / 1e6,
       timestamp: x[0].timestamp,
       fee: [.4, .2, .1, .05, .01, .005, .001]
-        .reduce((acc, y) => ({
+        .reduce((acc, quantile) => ({
           ...acc,
-          [y]: meanBy(minQuant(x, y), 'feeRate')
+          [quantile]: meanBy(minQuant(x, quantile), 'feeRate')
         }), {}),
       minFeeTx: minBy(x, 'feeRate')
     }))
@@ -125,24 +122,24 @@ export const bufferAdded$ =
 
 // buffer all txs until next block mined
 export const bufferRemoved$ =
-  removedTxs$
+  removedTxsShared$
+    .flatMap(x => x)
     .map(tx => ({ size: tx.size, cumSize: tx.cumSize }))
     .buffer(blockHash$.delay(5e+3)) // delay so that memPooler$ can update first
     .withLatestFrom(interBlockInterval$, (txs, ibi) => ({ txs, ibi }))
-    .bufferCount(config.constants.intBlocksRemoved, 1)
+    .bufferCount(intBlocksRemoved, 1)
     .map(x => x.reduce((acc, y) =>
       ({
         ibi: y.ibi + acc.ibi,
         txs: [...acc.txs, ...y.txs]
       }),
       { ibi: 0, txs: [] }))
-// .share()
 
 // returns bytes added to mempool / 10 min ahead of targetBlock
 export const addedBytesAheadTargetPer10min = (targetBlock: number) =>
   bufferAdded$
     .map(txs => txs
-      .filter(tx => tx.cumSize < targetBlock * blockSize)
+      .filter(tx => tx.cumSize < targetBlock * blockEffectiveSize)
       .reduce((acc, tx) => acc + tx.size, 0))
     .map(x => (x / intTimeAdded) * 10 * 60e+3) // per 10 min per B
     .distinctUntilChanged()
@@ -151,7 +148,7 @@ export const addedBytesAheadTargetPer10min = (targetBlock: number) =>
 export const removedBytesAheadTargetPer10min = (targetBlock: number) =>
   bufferRemoved$
     .map(x => x.txs
-      .filter(tx => tx.cumSize < targetBlock * blockSize)
+      .filter(tx => tx.cumSize < targetBlock * blockEffectiveSize)
       .reduce((acc, tx) => ({
         ...acc,
         value: tx.size + acc.value,
@@ -176,8 +173,15 @@ export const velocity = (targetBlock: number) =>
     .map(x => ({ ...x.value, now: x.timestamp }))
     .map(x => x.addV - x.rmV) // B / 10 min
     .distinctUntilChanged()
+    .share()
+
+export const acceleration = (targetBlock: number) =>
+  velocity(targetBlock)
+    .scan((v0, v1) => v1 - v0)
+
 // .do(x => console.log(`velocity ahead of targetBlock ${targetBlock} is ${x / 1e+6} MW/10min`))
 
+// the position x we aim to reach at time targetBlock
 export const finalPosition = (targetBlock: number) =>
   memPooler$
     .map(txs => txs.find(tx => tx.targetBlock === targetBlock + 1))
@@ -189,9 +193,11 @@ export const initialPosition = (targetBlock: number) =>
   Observable.combineLatest(
     finalPosition(targetBlock),
     velocity(targetBlock),
-    (x, v) => x - v * targetBlock)
+    acceleration(targetBlock),
+    (x, v, a) => x - (v * targetBlock + 1 / 2 * a * square(targetBlock)))
     .distinctUntilChanged()
 // .do((x) => console.log(`initialPosition for targetBlock ${targetBlock} ${x / 1e+6} MW`))
+
 // find the tx in mempool closest to the estimated x_0, to observe how much it
 // pays in fees
 export const getFeeTx = (targetBlock: number) =>
@@ -222,7 +228,7 @@ const range = [1, 2, 3, 4]
 const fees = range
   .map(x => getFee(x))
 
-const feeDiff$ = Observable.combineLatest(...fees)
+export const feeDiff$ = Observable.combineLatest(...fees)
   .map(x => x
     .reduce((acc, fee, i, xs) =>
       [
@@ -239,7 +245,11 @@ const feeDiff$ = Observable.combineLatest(...fees)
       ], [])
     .filter(x => x.diff <= 0))
 
-// cost function = feeDiff / targetBlock
+wamp.publish('com.fee.feediff', feeDiff$)
+
+const square = (n: number) => n * n
+
+// cost function = sqrt(cumDiff * diff) / (feeRate * targetBlock)
 // first value best deal
 export const minDiff$ = feeDiff$
   .map(x => {
@@ -251,9 +261,9 @@ export const minDiff$ = feeDiff$
         cumDiff: cumDiff += fee.diff,
       },
     ], [])
-      .sort((a, b) =>
-        a.cumDiff / a.targetBlock
-        - b.cumDiff / b.targetBlock)
+      .sort((b, a) =>
+        Math.sqrt(a.diff * a.cumDiff) / (a.feeRate * square(a.targetBlock))
+        - Math.sqrt(b.diff * b.cumDiff) / (b.feeRate * square(b.targetBlock)))
   })
   .share()
 

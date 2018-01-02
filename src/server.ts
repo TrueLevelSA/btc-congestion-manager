@@ -5,17 +5,22 @@ import { Client } from 'thruway.js'
 import { config } from '../config'
 
 const wamp = new Client(config.wamp.url, config.wamp.realm)
+
 const minDiff$ = wamp.topic('com.fee.mindiff')
   .flatMap(y => y.args)
-const n = 1
-const minDiffShare$ = minDiff$.shareReplay(n)
+const nReplay = 1
+const minDiffShare$ = minDiff$.shareReplay(nReplay)
 const app = express()
 
 app.get(
   '/',
   (_, res) => minDiffShare$
-    .take(n)
-    .subscribe(x => res.send(x))
+    .take(nReplay)
+    .subscribe(
+      x => res.send(x),
+      x => { console.error(`error in server: ${x}`) },
+      () => console.log('Successly sent price!')
+    )
 )
 
 app.listen(
