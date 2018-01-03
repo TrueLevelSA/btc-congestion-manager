@@ -18,5 +18,6 @@ export const config = {
     timeRes: 30e+3, // 30 s
     blockSize: 1e+6,
     minersReservedBlockRatio: 0.05,
+    minSavingsRate: 0.1,
   }
 }

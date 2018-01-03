@@ -7,7 +7,7 @@ import { config } from '../config'
 
 const wamp = new Client(config.wamp.url, config.wamp.realm)
 
-const { intTimeAdded, intBlocksRemoved, timeRes } = config.constants
+const { intTimeAdded, intBlocksRemoved, timeRes, minSavingsRate } = config.constants
 
 const blockEffectiveSize =
   config.constants.blockSize
@@ -196,7 +196,7 @@ export const initialPosition = (targetBlock: number) =>
     acceleration(targetBlock),
     (x, v, a) => x - (v * targetBlock + 1 / 2 * a * square(targetBlock)))
     .distinctUntilChanged()
-// .do((x) => console.log(`initialPosition for targetBlock ${targetBlock} ${x / 1e+6} MW`))
+// .do((x) => console.log(`initialPosition for targetBlock ${targetBlock} ${x / 1e+6} MB`))
 
 // find the tx in mempool closest to the estimated x_0, to observe how much it
 // pays in fees
@@ -225,8 +225,7 @@ export const getFee = (targetBlock: number) =>
 
 const range = [1, 2, 3, 4]
 
-const fees = range
-  .map(x => getFee(x))
+const fees = range.map(getFee)
 
 export const feeDiff$ = Observable.combineLatest(...fees)
   .map(x => x
@@ -254,16 +253,24 @@ const square = (n: number) => n * n
 export const minDiff$ = feeDiff$
   .map(x => {
     let cumDiff = 0
-    return x.reduce((acc, fee) => [
+    return x.reduce((acc, fee, _, xs) => [
       ...acc,
-      {
-        ...fee,
-        cumDiff: cumDiff += fee.diff,
-      },
+      fee.diff === 0 || fee.diff / xs[0].feeRate >= minSavingsRate
+        ? {
+          ...fee,
+          cumDiff: cumDiff += fee.diff,
+          valid: true,
+        }
+        : {
+          ...fee,
+          cumDiff: cumDiff += fee.diff,
+          valid: false,
+        },
     ], [])
+      .filter(x => x.valid)
       .sort((b, a) =>
-        Math.sqrt(a.diff * a.cumDiff) / (a.feeRate * square(a.targetBlock))
-        - Math.sqrt(b.diff * b.cumDiff) / (b.feeRate * square(b.targetBlock)))
+        Math.sqrt(a.diff * a.cumDiff) / square(a.targetBlock)
+        - Math.sqrt(b.diff * b.cumDiff) / square(b.targetBlock))
   })
   .share()
 
@@ -279,9 +286,9 @@ Observable.merge(minDiff$, minedTxsSummary$)
     return err.delay(20e+3)
   })
   .subscribe(
-  x => console.dir(x),
-  err => console.error(err),
-  () => console.log('finished (not implemented)')
+    x => console.dir(x),
+    err => console.error(err),
+    () => console.log('finished (not implemented)')
   )
 
 type MempoolTx = MempoolTxDefault & MempoolTxCustom
