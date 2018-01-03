@@ -253,9 +253,9 @@ const square = (n: number) => n * n
 export const minDiff$ = feeDiff$
   .map(x => {
     let cumDiff = 0
-    return x.reduce((acc, fee, _, xs) => [
+    return x.reduce((acc, fee, i, xs) => [
       ...acc,
-      fee.diff === 0 || fee.diff / xs[0].feeRate >= minSavingsRate
+      fee.diff === 0 || fee.diff / xs[i - 1].feeRate >= minSavingsRate
         ? {
           ...fee,
           cumDiff: cumDiff += fee.diff,
@@ -269,8 +269,8 @@ export const minDiff$ = feeDiff$
     ], [])
       .filter(x => x.valid)
       .sort((b, a) =>
-        Math.sqrt(a.diff * a.cumDiff) / square(a.targetBlock)
-        - Math.sqrt(b.diff * b.cumDiff) / square(b.targetBlock))
+        Math.sqrt(a.diff * a.cumDiff) / a.targetBlock
+        - Math.sqrt(b.diff * b.cumDiff) / b.targetBlock)
   })
   .share()
 
@@ -286,9 +286,9 @@ Observable.merge(minDiff$, minedTxsSummary$)
     return err.delay(20e+3)
   })
   .subscribe(
-    x => console.dir(x),
-    err => console.error(err),
-    () => console.log('finished (not implemented)')
+  x => console.dir(x),
+  err => console.error(err),
+  () => console.log('finished (not implemented)')
   )
 
 type MempoolTx = MempoolTxDefault & MempoolTxCustom
