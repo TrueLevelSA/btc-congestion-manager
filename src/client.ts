@@ -1,11 +1,10 @@
 import { Client } from 'thruway.js'
 import { Observable } from 'rxjs'
-const wamp = new Client('http://159.100.247.219:8080/ws', 'realm1')
+import { config } from '../config'
+const wamp = new Client(config.wamp.url, config.wamp.realm)
+
 const minedTxSummary$ = wamp.topic('com.fee.minedtxssummary')
   .flatMap(x => x.args)
-
-// const feeDiff$ = wamp.topic('com.buffered.feediff')
-//   .flatMap(y => y.args)
 
 const minDiff$ = wamp.topic('com.fee.mindiff')
   .flatMap(y => y.args)

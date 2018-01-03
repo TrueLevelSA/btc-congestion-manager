@@ -19,7 +19,7 @@ app.get(
     .subscribe(
       x => res.send(x),
       x => { console.error(`error in server: ${x}`) },
-      () => console.log('Successly sent price!')
+      // () => console.log('Successly sent price!')
     )
 )
 
