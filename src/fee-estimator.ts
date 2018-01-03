@@ -216,10 +216,10 @@ export const getFee = (targetBlock: number) =>
     .map(x => ({
       // make the fee different from the base tx fee, afraid of bad minima if
       // protocol becomes heavily used
+      targetBlock,
       feeRate: x.value * 0.999,
       timestamp: x.timestamp,
       date: new Date(x.timestamp),
-      targetBlock,
     }))
 // .do((x) => console.log(`getFee ${x.targetBlock} = ${x.feeRate} satoshi/W @ ${new Date(x.timestamp)}`))
 
@@ -234,12 +234,12 @@ export const feeDiff$ = Observable.combineLatest(...fees)
         ...acc,
         (i > 0)
           ? {
-            diff: (xs[i].feeRate - xs[i - 1].feeRate) / (range[i] - range[i - 1]),
             ...fee,
+            diff: (xs[i].feeRate - xs[i - 1].feeRate) / (range[i] - range[i - 1]),
           }
           : {
-            diff: 0,
             ...fee,
+            diff: 0,
           }
       ], [])
     .filter(x => x.diff <= 0))
@@ -248,8 +248,9 @@ wamp.publish('com.fee.feediff', feeDiff$)
 
 const square = (n: number) => n * n
 
-// cost function = sqrt(cumDiff * diff) / (feeRate * targetBlock)
-// first value best deal
+// cost function = sqrt(cumDiff * diff) / targetBlock. first value is the best
+// deal, if any exist, otherwise its the next block estimated fee. last value is
+// the next block estimated fee
 export const minDiff$ = feeDiff$
   .map(x => {
     let cumDiff = 0
@@ -268,6 +269,7 @@ export const minDiff$ = feeDiff$
         },
     ], [])
       .filter(x => x.valid)
+      .map(({ valid, ...x }) => x)
       .sort((b, a) =>
         Math.sqrt(a.diff * a.cumDiff) / a.targetBlock
         - Math.sqrt(b.diff * b.cumDiff) / b.targetBlock)
