@@ -24,6 +24,15 @@ and tx_1 (1st in the queue), and the difference between tx_3 and tx_2 that
 should be the same, and could be as low as the lowest unit, 1 satoshi. Just
 enough to represent priority. 
 
+Now let's stop assuming the mempool is stationary and take it as a dynamic
+system. We introduce velocities where old txs are pushed back by the
+introduction of new txs in front of it.
+
+So now the problem becomes, what fee do I pay for my transaction such that it
+will be consumed (mined) on the block say 2. The mempool is growing in front of
+the 2nd megabyte, and old txs are pushed back. You should place ur tx much in
+front of where you want it to end up in.
+
 Very often the fee market is very shallow. The next 2 blocks might be packed
 with txs paying 600 sat/B, but then the 3rd block has txs paying 200 sat/B. We
 try to find where these fee gaps are and suggest them as fees so that they fill
@@ -56,9 +65,9 @@ future.
    #+END_SRC
 
 ** methods
-   - we rewrite x = x_0 + vt into x_0 = x - vt (eq1), where x_0 is the initial position
-     [B], x is the finalPosition [B], v is velocity in [B/10 min] and t is time
-     in [10 min]
+   - we rewrite x = x_0 + vt into x_0 = x - vt (eq1), where x_0 is the initial
+     position in B, x is the finalPosition B, v is velocity in B/10 min and t is
+     time in 10 min
    - all txs are sorted according to weight of the whole branch involving all
      its decendents
    - we calculate how many transactions are added ahead of a target block to
