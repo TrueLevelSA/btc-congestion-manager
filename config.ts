@@ -14,7 +14,7 @@ export const config = {
   },
   constants: {
     intTimeAdded: 30 * 60e+3, // averaging 30 min
-    intBlocksRemoved: 18, // averaging 18 blocks
+    intBlocksRemoved: 6, // TODO: averaging 18 blocks
     timeRes: 30e+3, // 30 s
     blockSize: 1e+6,
     minersReservedBlockRatio: 0.05,

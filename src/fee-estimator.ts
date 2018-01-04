@@ -161,6 +161,7 @@ export const removedBytesAheadTargetPer10min = (targetBlock: number) =>
     .distinctUntilChanged()
     .timestamp()
     .map(x => ({ rmV: x.value, rmtimestamp: x.timestamp }))
+    .distinctUntilChanged()
 // .do(x => console.log(`rm velocity ${x.rmV / 1e+6} MW/10min`))
 
 // mempool growth velocity in B / 10 min ahead of targetBlock
@@ -169,17 +170,9 @@ export const velocity = (targetBlock: number) =>
     addedBytesAheadTargetPer10min(targetBlock),
     removedBytesAheadTargetPer10min(targetBlock),
     (addV, rmV) => ({ addV, ...rmV }))
-    .timestamp()
-    .map(x => ({ ...x.value, now: x.timestamp }))
     .map(x => x.addV - x.rmV) // B / 10 min
     .distinctUntilChanged()
     .share()
-
-export const acceleration = (targetBlock: number) =>
-  velocity(targetBlock)
-    .scan((v0, v1) => v1 - v0)
-
-// .do(x => console.log(`velocity ahead of targetBlock ${targetBlock} is ${x / 1e+6} MW/10min`))
 
 // the position x we aim to reach at time targetBlock
 export const finalPosition = (targetBlock: number) =>
@@ -187,14 +180,14 @@ export const finalPosition = (targetBlock: number) =>
     .map(txs => txs.find(tx => tx.targetBlock === targetBlock + 1))
     .filter(tx => tx !== undefined)
     .map((tx: MempoolTx) => tx.cumSize)
+    .distinctUntilChanged()
 
 // find the initial position x_0
 export const initialPosition = (targetBlock: number) =>
   Observable.combineLatest(
     finalPosition(targetBlock),
     velocity(targetBlock),
-    acceleration(targetBlock),
-    (x, v, a) => x - (v * targetBlock + 1 / 2 * a * square(targetBlock)))
+    (x, v) => x - v * targetBlock)
     .distinctUntilChanged()
 // .do((x) => console.log(`initialPosition for targetBlock ${targetBlock} ${x / 1e+6} MB`))
 
@@ -215,7 +208,7 @@ export const getFee = (targetBlock: number) =>
     .timestamp()
     .map(x => ({
       // make the fee different from the base tx fee, afraid of bad minima if
-      // protocol becomes heavily used
+      // api becomes heavily used
       targetBlock,
       feeRate: x.value * 0.999,
       timestamp: x.timestamp,
@@ -256,11 +249,11 @@ export const minDiff$ = feeDiff$
     let cumDiff = 0
     return x.reduce((acc, fee, i, xs) => [
       ...acc,
-      fee.diff === 0 || fee.diff / xs[i - 1].feeRate >= minSavingsRate
+      i === 0 || -fee.diff / xs[i - 1].feeRate >= minSavingsRate
         ? {
           ...fee,
           cumDiff: cumDiff += fee.diff,
-          valid: true,
+          valid: fee.diff <= 0,
         }
         : {
           ...fee,
@@ -271,8 +264,8 @@ export const minDiff$ = feeDiff$
       .filter(x => x.valid)
       .map(({ valid, ...x }) => x)
       .sort((b, a) =>
-        Math.sqrt(a.diff * a.cumDiff) / a.targetBlock
-        - Math.sqrt(b.diff * b.cumDiff) / b.targetBlock)
+        Math.sqrt(a.diff * a.cumDiff) / square(a.targetBlock)
+        - Math.sqrt(b.diff * b.cumDiff) / square(b.targetBlock))
   })
   .share()
 
