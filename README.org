@@ -1,10 +1,40 @@
-* bitcoin fee estimator
+* bitcoin congestion manager
   :PROPERTIES:
   :CREATED:  [2017-11-21 Tue 17:45]
   :MODIFIED: [2017-11-22 Wed 02:41]
   :END:
+
+The bitcoin txs queue is messy and too many people are jumping the line. Let's
+organize that mess. Nobody jumping the line no more!  
+
+** philosophy
+- Do not overpay in fees
+- Do manage the tx queue
+
+We aim to organize the queue by spoting non-uniformity on the mempool fee
+distribution and suggest fees for new txs that would fill that gap. Over time
+that produces a somewhat uniform fee distribution and a much more predictable
+fee market where different parties could trully prioritize transactions.
+
+Lets assume a stationary mempool. Lets take all txs and sort by fee and sum up
+their sizes up to when it reaches block 1 (1 MB) and then continue up to block n
+(n MB). We have the queue from the perspective of a miner. In the ideal scenario
+if we take the difference in fees paid by transaction tx_2 (2nd in the queue)
+and tx_1 (1st in the queue), and the difference between tx_3 and tx_2 that
+should be the same, and could be as low as the lowest unit, 1 satoshi. Just
+enough to represent priority. 
+
+Very often the fee market is very shallow. The next 2 blocks might be packed
+with txs paying 600 sat/B, but then the 3rd block has txs paying 200 sat/B. We
+try to find where these fee gaps are and suggest them as fees so that they fill
+the gaps. 
+
+As a beneficial side effect, it becomes much easier to predict fees in the
+future.
+
 ** requirements
   - bitcoind full node with zmq push notifications enabled for blockhash
+  - nodejs
 
 **  problem
    - given the transactions present in the mempool, find the feeRate that would

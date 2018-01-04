@@ -14,10 +14,10 @@ export const config = {
   },
   constants: {
     integrateTimeAdded: 30 * 60e+3, // averaging 30 min
-    integrateBlocksRemoved: 12, // TODO: averaging 18 blocks
+    integrateBlocksRemoved: 6, // TODO: averaging 18 blocks
     timeRes: 30e+3, // 30 s
     blockSize: 1e+6,
-    minersReservedBlockRatio: 0.025,
+    minersReservedBlockRatio: 0.03,
     minSavingsRate: 0.1,
   }
 }

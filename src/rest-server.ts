@@ -18,7 +18,7 @@ app.get(
     .take(nReplay)
     .subscribe(
       x => res.send(x),
-      x => { console.error(`error in server: ${x}`) },
+      err => { console.error(`error in server: ${err}`) },
       // () => console.log('Successly sent price!')
     )
 )
