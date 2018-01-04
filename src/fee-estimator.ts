@@ -253,7 +253,7 @@ export const minDiff$ = feeDiff$
         ? {
           ...fee,
           cumDiff: cumDiff += fee.diff,
-          valid: fee.diff <= 0,
+          valid: fee.feeRate <= xs[0].feeRate,
         }
         : {
           ...fee,
@@ -267,6 +267,7 @@ export const minDiff$ = feeDiff$
         Math.sqrt(a.diff * a.cumDiff) / square(a.targetBlock)
         - Math.sqrt(b.diff * b.cumDiff) / square(b.targetBlock))
   })
+  .distinctUntilChanged()
   .share()
 
 wamp.publish('com.fee.mindiff', minDiff$)
