@@ -7,7 +7,7 @@ import { config } from '../config'
 
 const wamp = new Client(config.wamp.url, config.wamp.realm)
 
-const { intTimeAdded, intBlocksRemoved, timeRes, minSavingsRate } = config.constants
+const { integrateTimeAdded, integrateBlocksRemoved, timeRes, minSavingsRate } = config.constants
 
 const blockEffectiveSize =
   config.constants.blockSize
@@ -88,9 +88,13 @@ export const minedTxs$ =
   removedTxsShared$
     .filter(txs => txs.length > 500) // reliable mined block proxy
 
-// min quantile of a sorted list
-const minQuant = (xs: any[], quantile: number) =>
-  xs.filter((_, i) => i > xs.length * (1 - quantile))
+// range selector of a sorted list
+const rangeSelector = (xs: any[], edge0: number, edge1 = 0) => {
+  if (edge0 > edge1)
+    return xs.filter((_, x) =>
+      x > xs.length * (1 - edge0) && x <= xs.length * (1 - edge1))
+  else return []
+}
 
 export const minedTxsSummary$ =
   minedTxs$
@@ -98,18 +102,18 @@ export const minedTxsSummary$ =
     .timestamp()
     .map(x => x.value.mempool.map(y => ({ ...y, timestamp: x.timestamp, ibi: x.value.ibi }))
       .sort((a, b) => b.feeRate - a.feeRate))
-    .map(x => ({
-      ibi: x[0].ibi / 60e+3,
-      date: new Date(x[0].timestamp),
-      txs: x.length,
-      blockSize: sumBy(x, 'size') / 1e6,
-      timestamp: x[0].timestamp,
+    .map(txs => ({
+      ibi: txs[0].ibi / 60e+3,
+      date: new Date(txs[0].timestamp),
+      ntxs: txs.length,
+      blockSize: sumBy(txs, 'size') / 1e6,
+      timestamp: txs[0].timestamp,
       fee: [.4, .2, .1, .05, .01, .005, .001]
-        .reduce((acc, quantile) => ({
+        .reduce((acc, x, i, xs) => ({
           ...acc,
-          [quantile]: meanBy(minQuant(x, quantile), 'feeRate')
+          [x]: meanBy(rangeSelector(txs, xs[i], xs[i + 1]), 'feeRate')
         }), {}),
-      minFeeTx: minBy(x, 'feeRate')
+      minFeeTx: minBy(txs, 'feeRate')
     }))
 
 wamp.publish('com.fee.minedtxssummary', minedTxsSummary$)
@@ -117,7 +121,7 @@ wamp.publish('com.fee.minedtxssummary', minedTxsSummary$)
 export const bufferAdded$ =
   addedTxs$
     .map(x => ({ size: x.size, cumSize: x.cumSize }))
-    .bufferTime(intTimeAdded, timeRes)
+    .bufferTime(integrateTimeAdded, timeRes)
     .share()
 
 // buffer all txs until next block mined
@@ -127,7 +131,7 @@ export const bufferRemoved$ =
     .map(tx => ({ size: tx.size, cumSize: tx.cumSize }))
     .buffer(blockHash$.delay(5e+3)) // delay so that memPooler$ can update first
     .withLatestFrom(interBlockInterval$, (txs, ibi) => ({ txs, ibi }))
-    .bufferCount(intBlocksRemoved, 1)
+    .bufferCount(integrateBlocksRemoved, 1)
     .map(x => x.reduce((acc, y) =>
       ({
         ibi: y.ibi + acc.ibi,
@@ -141,23 +145,20 @@ export const addedBytesAheadTargetPer10min = (targetBlock: number) =>
     .map(txs => txs
       .filter(tx => tx.cumSize < targetBlock * blockEffectiveSize)
       .reduce((acc, tx) => acc + tx.size, 0))
-    .map(x => (x / intTimeAdded) * 10 * 60e+3) // per 10 min per B
+    // (B / ms) * 10 min
+    .map(addSize => (addSize / integrateTimeAdded) * 10 * 60e+3) // per 10 min per B
     .distinctUntilChanged()
 // .do(x => console.log(`add velocity ahead of targetBlock ${targetBlock} is ${x / 1e+6} MW/10min`))
 
 export const removedBytesAheadTargetPer10min = (targetBlock: number) =>
   bufferRemoved$
-    .map(x => x.txs
-      .filter(tx => tx.cumSize < targetBlock * blockEffectiveSize)
-      .reduce((acc, tx) => ({
-        ...acc,
-        value: tx.size + acc.value,
-      }),
-      {
-        value: 0,
-        ibi: x.ibi
-      }))
-    .map(x => x.value / (x.ibi / 60e+3) * 10)
+    .map(x => ({
+      ibi: x.ibi,
+      rmSize: x.txs
+        .filter(tx => tx.cumSize < targetBlock * blockEffectiveSize)
+        .reduce((acc, tx) => tx.size + acc, 0)
+    }))
+    .map(x => (x.rmSize / x.ibi) * 10 * 60e+3)
     .distinctUntilChanged()
     .timestamp()
     .map(x => ({ rmV: x.value, rmtimestamp: x.timestamp }))
@@ -236,6 +237,7 @@ export const feeDiff$ = Observable.combineLatest(...fees)
           }
       ], [])
     .filter(x => x.diff <= 0))
+  .distinctUntilChanged()
 
 wamp.publish('com.fee.feediff', feeDiff$)
 

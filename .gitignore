@@ -3,3 +3,5 @@
 .crossbar/key.*
 /penv
 /web
+/.crossbar/node.pid
+/logs

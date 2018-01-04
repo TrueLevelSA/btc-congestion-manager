@@ -13,11 +13,11 @@ export const config = {
     url: 'tcp://localhost:28333'
   },
   constants: {
-    intTimeAdded: 30 * 60e+3, // averaging 30 min
-    intBlocksRemoved: 6, // TODO: averaging 18 blocks
+    integrateTimeAdded: 30 * 60e+3, // averaging 30 min
+    integrateBlocksRemoved: 12, // TODO: averaging 18 blocks
     timeRes: 30e+3, // 30 s
     blockSize: 1e+6,
-    minersReservedBlockRatio: 0.05,
+    minersReservedBlockRatio: 0.025,
     minSavingsRate: 0.1,
   }
 }
