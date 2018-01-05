@@ -173,6 +173,7 @@ export const velocity = (targetBlock: number) =>
     removedBytesAheadTargetPer10min(targetBlock),
     (addV, rmV) => ({ addV, ...rmV }))
     .map(x => x.addV - x.rmV) // B / 10 min
+    .scan((x, y) => !isEqual(x, y) ? y : x)
     .distinctUntilChanged()
     .share()
 
@@ -182,6 +183,7 @@ export const finalPosition = (targetBlock: number) =>
     .map(txs => txs.find(tx => tx.targetBlock === targetBlock + 1))
     .filter(tx => tx !== undefined)
     .map((tx: MempoolTx) => tx.cumSize)
+    .scan((x, y) => !isEqual(x, y) ? y : x)
     .distinctUntilChanged()
 
 // find the initial position x_0
@@ -190,6 +192,7 @@ export const initialPosition = (targetBlock: number) =>
     finalPosition(targetBlock),
     velocity(targetBlock),
     (x, v) => x - v * targetBlock)
+    .scan((x, y) => !isEqual(x, y) ? y : x)
     .distinctUntilChanged()
 // .do((x) => console.log(`initialPosition for targetBlock ${targetBlock} ${x / 1e+6} MB`))
 
@@ -202,6 +205,7 @@ export const getFeeTx = (targetBlock: number) =>
       .map(tx => ({ ...tx, distance: Math.abs(tx.cumSize - x.pos) })))
     .map(x => minBy(x, y => y.distance))
     .filter(x => x !== undefined)
+    .scan((x, y) => !isEqual(x, y) ? y : x)
     .distinctUntilChanged()
     .share()
 
@@ -217,6 +221,7 @@ export const getFee = (targetBlock: number) =>
       timestamp: x.timestamp,
       date: new Date(x.timestamp),
     }))
+    .scan((x, y) => !isEqual(x, y) ? y : x)
     .distinctUntilChanged()
 // .do((x) => console.log(`getFee ${x.targetBlock} = ${x.feeRate} satoshi/W @ ${new Date(x.timestamp)}`))
 
@@ -240,6 +245,7 @@ export const feeDiff$ = Observable.combineLatest(...fees)
           }
       ], [])
     .filter(x => x.diff <= 0))
+  .scan((x, y) => !isEqual(x, y) ? y : x)
   .distinctUntilChanged()
 
 wamp.publish('com.fee.feediff', feeDiff$)
@@ -272,6 +278,7 @@ export const minDiff$ = feeDiff$
         Math.sqrt(a.diff * a.cumDiff) / square(a.targetBlock)
         - Math.sqrt(b.diff * b.cumDiff) / square(b.targetBlock))
   })
+  .scan((x, y) => !isEqual(x, y) ? y : x)
   .distinctUntilChanged()
   .share()
 
