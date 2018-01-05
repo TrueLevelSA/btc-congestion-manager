@@ -4,8 +4,9 @@
   :MODIFIED: [2017-11-22 Wed 02:41]
   :END:
 
-The bitcoin txs queue is messy and too many people are jumping the line. Let's
-organize that mess. Nobody jumping the line no more!  
+The bitcoin txs queue is messy and too many people are jumping the line,
+congesting whoever is behind. Let's organize that mess. No randomly jumping the
+line no more! Rather dance with the queue.
 
 ** philosophy
 - Do not overpay in fees
@@ -35,8 +36,8 @@ front of where you want it to end up in.
 
 Very often the fee market is very shallow. The next 2 blocks might be packed
 with txs paying 600 sat/B, but then the 3rd block has txs paying 200 sat/B. We
-try to find where these fee gaps are and suggest them as fees so that they fill
-the gaps. 
+try to find in real time where these fee gaps are and suggest them as fees so
+that they fill the gaps.
 
 As a beneficial side effect, it becomes much easier to predict fees in the
 future.
@@ -45,7 +46,7 @@ future.
   - bitcoind full node with zmq push notifications enabled for blockhash
   - nodejs
 
-**  problem
+** problem
    - given the transactions present in the mempool, find the feeRate that would
      be placed at the end of a chosen block
 
