@@ -7,7 +7,8 @@ import { config } from '../config'
 
 const wamp = new Client(config.wamp.url, config.wamp.realm)
 
-const { integrateTimeAdded, integrateBlocksRemoved, timeRes, minSavingsRate } = config.constants
+const { integrateTimeAdded, integrateBlocksRemoved, timeRes, minSavingsRate } =
+  config.constants
 
 const blockEffectiveSize =
   config.constants.blockSize
@@ -201,6 +202,7 @@ export const getFeeTx = (targetBlock: number) =>
       .map(tx => ({ ...tx, distance: Math.abs(tx.cumSize - x.pos) })))
     .map(x => minBy(x, y => y.distance))
     .filter(x => x !== undefined)
+    .distinctUntilChanged()
     .share()
 
 export const getFee = (targetBlock: number) =>
@@ -215,9 +217,10 @@ export const getFee = (targetBlock: number) =>
       timestamp: x.timestamp,
       date: new Date(x.timestamp),
     }))
+    .distinctUntilChanged()
 // .do((x) => console.log(`getFee ${x.targetBlock} = ${x.feeRate} satoshi/W @ ${new Date(x.timestamp)}`))
 
-const range = [1, 2, 3, 4]
+const range = [1, 2, 3, 4, 5, 6, 9, 12]
 
 const fees = range.map(getFee)
 

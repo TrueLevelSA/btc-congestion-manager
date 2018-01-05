@@ -4,9 +4,9 @@
   :MODIFIED: [2017-11-22 Wed 02:41]
   :END:
 
-The bitcoin txs queue is messy and too many people are jumping the line,
-congesting whoever is behind. Let's organize that mess. No randomly jumping the
-line no more! Rather dance with the queue.
+The bitcoin tx queue is messy and too many people are jumping the line,
+congesting whoever is behind. Let's organize that mess. No randomly jumping in
+front of the line no more! Rather squeeze in and dance with the queue.
 
 ** philosophy
 - Do not overpay in fees
