@@ -4,54 +4,95 @@
   :MODIFIED: [2017-11-22 Wed 02:41]
   :END:
 
-The bitcoin tx queue is messy and too many people are jumping the line,
-congesting whoever is behind. Let's organize that mess. No randomly jumping in
-front of the line no more! Rather squeeze in and dance with the queue.
+  The bitcoin tx queue is messy and too many people are jumping the line,
+  congesting whoever is behind. Let's organize that mess. No randomly jumping in
+  front of the line no more! Rather squeeze in and dance with the queue.
 
 ** philosophy
-- Do not overpay in fees
-- Do manage the tx queue
+   - Do not overpay in fees
+   - Do manage the tx queue
 
-We aim to organize the queue by spoting non-uniformity on the mempool fee
-distribution and suggest fees for new txs that would fill that gap. Over time
-that produces a somewhat uniform fee distribution and a much more predictable
-fee market where different parties could trully prioritize transactions.
+   We aim to organize the queue by spoting non-uniformity on the mempool fee
+   distribution and suggest fees for new txs that would fill that gap. Over time
+   that produces a somewhat uniform fee distribution and a much more predictable
+   fee market where different parties could trully prioritize transactions.
 
-Lets assume a stationary mempool. Lets take all txs and sort by fee and sum up
-their sizes up to when it reaches block 1 (1 MB) and then continue up to block n
-(n MB). We have the queue from the perspective of a miner. In the ideal scenario
-if we take the difference in fees paid by transaction tx_2 (2nd in the queue)
-and tx_1 (1st in the queue), and the difference between tx_3 and tx_2 that
-should be the same, and could be as low as the lowest unit, 1 satoshi. Just
-enough to represent priority. 
+   Lets assume a stationary mempool. Lets take all txs and sort by fee and sum up
+   their sizes up to when it reaches block 1 (1 MB) and then continue up to block n
+   (n MB). We have the queue from the perspective of a miner. In the ideal scenario
+   if we take the difference in fees paid by transaction tx_2 (2nd in the queue)
+   and tx_1 (1st in the queue), and the difference between tx_3 and tx_2 that
+   should be the same, and could be as low as the lowest unit, 1 satoshi. Just
+   enough to represent priority.
 
-Now let's stop assuming the mempool is stationary and take it as a dynamic
-system. We introduce velocities where old txs are pushed back by the
-introduction of new txs in front of it.
+   Now let's stop assuming the mempool is stationary and take it as a dynamic
+   system. We introduce velocities where old txs are pushed back by the
+   introduction of new txs in front of it.
 
-So now the problem becomes, what fee do I pay for my transaction such that it
-will be consumed (mined) on the block say 2. The mempool is growing in front of
-the 2nd megabyte, and old txs are pushed back. You should place ur tx much in
-front of where you want it to end up in.
+   So now the problem becomes, what fee do I pay for my transaction such that it
+   will be consumed (mined) on the block say 2. The mempool is growing in front of
+   the 2nd megabyte, and old txs are pushed back. You should place ur tx much in
+   front of where you want it to end up in.
 
-Very often the fee market is very shallow. The next 2 blocks might be packed
-with txs paying 600 sat/B, but then the 3rd block has txs paying 200 sat/B. We
-try to find in real time where these fee gaps are and suggest them as fees so
-that they fill the gaps.
+   Very often the fee market is very shallow. The next 2 blocks might be packed
+   with txs paying 600 sat/B, but then the 3rd block has txs paying 200 sat/B. We
+   try to find in real time where these fee gaps are and suggest them as fees so
+   that they fill the gaps.
 
-As a beneficial side effect, it becomes much easier to predict fees in the
-future.
+   As a beneficial side effect, it becomes much easier to predict fees in the
+   future.
 
 ** requirements
-  - bitcoind full node with zmq push notifications enabled for blockhash
-  - nodejs
+   - bitcoind full node with zmq push notifications enabled for blockhash
+   - nodejs
+
+
+** installation
+   
+*** install package and compile typescript code
+    #+BEGIN_SRC sh
+    git clone git@github.com:dlebrecht/bitcoin-congestion-manager.git
+    cd bitcoin-congestion-manger
+    npm i
+    tsc
+    #+END_SRC
+  
+*** install crossbar 
+    #+BEGIN_SRC sh
+    virtualenv -p python3 penv
+    source penv/bin/activate
+    pip3 install crossbar
+    #+END_SRC
+
+** running
+*** start crossbar
+    #+BEGIN_SRC sh
+    source penv/bin/activate
+    crossbar start
+    #+END_SRC
+
+*** start bitcoind node
+    #+BEGIN_SRC sh
+    bitcoind --daemon
+    #+END_SRC
+
+*** start fee-estimator
+    #+BEGIN_SRC sh
+    node dist/src/fee-estimator.js
+    #+END_SRC
+
+*** start rest server
+    #+BEGIN_SRC sh
+    node dist/src/rest-server.js
+    #+END_SRC
 
 ** problem
    - given the transactions present in the mempool, find the feeRate that would
      be placed at the end of a chosen block
 
-** diagram (2018-01-01 16:48:56)
-   #+BEGIN_SRC 
+** diagram 
+   - data from [2018-01-01 16:48:56]
+   #+BEGIN_SRC
 
        0 sat/B  -143 sat/B  -159 sat/B   -18 sat/B
          |-----------|-----------|-----------|

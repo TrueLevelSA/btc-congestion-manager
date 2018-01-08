@@ -114,10 +114,16 @@ export const minedTxsSummary$ =
           ...acc,
           [x]: meanBy(rangeSelector(txs, xs[i], xs[i + 1]), 'feeRate')
         }), {}),
-      minFeeTx: minBy(txs, 'feeRate')
+        minFeeTx: minBy(txs, 'feeRate'),
     }))
 
 wamp.publish('com.fee.minedtxssummary', minedTxsSummary$)
+
+export const blockEffectiveSize$ =
+  minedTxsSummary$
+    .map(x => x.blockSize)
+    .bufferCount(integrateBlocksRemoved)
+    .map(x => x.reduce((acc, y) => acc + y / integrateBlocksRemoved, 0))
 
 export const bufferAdded$ =
   addedTxs$
@@ -225,7 +231,7 @@ export const getFee = (targetBlock: number) =>
     .distinctUntilChanged()
 // .do((x) => console.log(`getFee ${x.targetBlock} = ${x.feeRate} satoshi/W @ ${new Date(x.timestamp)}`))
 
-const range = [1, 2, 3, 4, 5, 6, 9, 12]
+const range = [1, 2, 3, 4]
 
 const fees = range.map(getFee)
 
@@ -278,8 +284,6 @@ export const minDiff$ = feeDiff$
         Math.sqrt(a.diff * a.cumDiff) / square(a.targetBlock)
         - Math.sqrt(b.diff * b.cumDiff) / square(b.targetBlock))
   })
-  .scan((x, y) => !isEqual(x, y) ? y : x)
-  .distinctUntilChanged()
   .share()
 
 wamp.publish('com.fee.mindiff', minDiff$)
@@ -289,10 +293,10 @@ wamp.publish('com.fee.mindiff', minDiff$)
 
 // subscriber
 Observable.merge(minDiff$, minedTxsSummary$)
-  .retryWhen(err => {
-    console.error(err)
-    return err.delay(20e+3)
-  })
+  // .retryWhen(err => {
+  //   console.error(err)
+  //   return err.delay(20e+3)
+  // })
   .subscribe(
   x => console.dir(x),
   err => console.error(err),
