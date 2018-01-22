@@ -10,7 +10,7 @@
 
 ** philosophy
    - Do not overpay in fees
-   - Do manage the tx queue
+   - Proactively manage the tx queue
 
    We aim to organize the queue by spoting non-uniformity on the mempool fee
    distribution and suggest fees for new txs that would fill that gap. Over time
@@ -30,7 +30,7 @@
    introduction of new txs in front of it.
 
    So now the problem becomes, what fee do I pay for my transaction such that it
-   will be consumed (mined) on the block say 2. The mempool is growing in front of
+   will be mined on the block say 2. The mempool is growing in front of
    the 2nd megabyte, and old txs are pushed back. You should place ur tx much in
    front of where you want it to end up in.
 
@@ -124,3 +124,8 @@
      of feeRate targetting different blocks, and call it diffFeeRate. cost
      function is: diffFeeRate / sqrt(targetBlock). and best deal is the head of
      that sorted list
+     
+
+** todo
+- [ ] rpc pull the block txs to create statistics, not the txs_nr > 500 that
+  disappear at once hack

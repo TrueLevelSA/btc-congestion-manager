@@ -1,4 +1,6 @@
+import { range } from 'lodash'
 export const config = {
+  debug: true,
   rpc: {
     host: '127.0.0.1',
     port: 8332,
@@ -10,11 +12,16 @@ export const config = {
     realm: 'realm1',
   },
   zmq_socket: {
-    url: 'tcp://localhost:28333'
+    url: 'tcp://localhost:28333',
+  },
+  redis: {
+    port: 6379,
+    url: 'localhost',
   },
   constants: {
+    range: [1, ...range(0.9, 0.5, -0.1), ...range(2, 36)],
     integrateTimeAdded: 30 * 60e+3, // averaging 30 min
-    integrateBlocksRemoved: 12, // TODO: averaging 18 blocks
+    integrateBlocksRemoved: 18, // averaging 18 blocks
     timeRes: 10e+3, // 5 s
     blockSize: 1e+6,
     minersReservedBlockRatio: 0.05,
