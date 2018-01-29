@@ -12,15 +12,25 @@ const nReplay = 1
 const minDiffShare$ = minDiff$.shareReplay(nReplay)
 const app = express()
 
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+  next();
+})
+
 app.get(
   '/',
   (_, res) => minDiffShare$
     .take(nReplay)
+    .retryWhen(errors =>
+      errors
+        .do(err => console.error(`Error: ${err}`))
+        .delayWhen(val => Observable.timer(config.constants.timeRes * 10)))
     .subscribe(
-      x => res.send(x),
-      err => { console.error(`error in server: ${err}`) },
-      // () => console.log('Successly sent price!')
-    )
+    x => res.send(x),
+    err => { console.error(`error in server: ${err}`) },
+    // () => console.log('Successly sent price!')
+  )
 )
 
 app.listen(

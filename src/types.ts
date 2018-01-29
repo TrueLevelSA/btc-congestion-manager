@@ -23,3 +23,26 @@ export interface MempoolTxCustom {
   cumSize: number
   targetBlock: number
 }
+
+export interface MinDiff {
+  cumDiff: number;
+  diff: number;
+  targetBlock: number;
+  feeRate: number;
+  timestamp: number;
+  date: Date;
+}[]
+
+
+export interface GetBlock {
+  hash: string;
+  confirmations: number;
+  strippedsize: number;
+  size: number;
+  weight: number;
+  height: number;
+  version: number;
+  versionHex: string;
+  merkleroot: string;
+  tx: string[];
+}

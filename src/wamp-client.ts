@@ -3,18 +3,21 @@ import { Observable } from 'rxjs'
 import { config } from '../config'
 const wamp = new Client(config.wamp.url, config.wamp.realm)
 
-export const minedTxSummary$ = wamp.topic('com.fee.minedtxssummary')
-  .flatMap(x => x.args)
 
-export const minDiff$ = wamp.topic('com.fee.mindiff')
-  .flatMap(y => y.args)
+export const minedTxSummary$ =
+  wamp.topic('com.fee.minedtxssummary')
+    .flatMap(x => x.args)
 
-Observable.merge(
-  minedTxSummary$,
-  minDiff$
-).subscribe(
-  x => console.dir(x),
-  err => console.error(err),
-  () => console.log('finished')
-  )
+export const minDiff$ =
+  wamp.topic('com.fee.mindiff')
+    .flatMap(x => x.args)
+
+// Observable.merge(
+//   minedTxSummary$,
+//   minDiff$
+// ).subscribe(
+//   x => console.dir(x),
+//   err => console.error(err),
+//   () => console.log('finished')
+//   )
 

@@ -13,7 +13,8 @@ export const setItem = async (key: string, value: any) => {
   }
 }
 
-export const getBufferAdded = async (key: string): Promise<{ size: number, cumSize: number }[]> => {
+export const getBufferAdded = async (): Promise<{ size: number, cumSize: number }[]> => {
+  const key = 'buffer_added'
   try {
     return JSON.parse(await redis.get(key))
   } catch (err) {
@@ -22,7 +23,18 @@ export const getBufferAdded = async (key: string): Promise<{ size: number, cumSi
   }
 }
 
-export const getBufferRemoved = async (key: string): Promise<{ txs: { size: number, cumSize: number }[], ibi: number }> => {
+export const getBufferRemoved = async (): Promise<{ txs: { size: number, cumSize: number }[], ibi: number }> => {
+  const key = 'buffer_removed'
+  try {
+    return JSON.parse(await redis.get(key))
+  } catch (err) {
+    console.error(err)
+    return err
+  }
+}
+
+export const getBufferBlockSize = async (): Promise<number[]> => {
+  const key = 'buffer_blocksize'
   try {
     return JSON.parse(await redis.get(key))
   } catch (err) {

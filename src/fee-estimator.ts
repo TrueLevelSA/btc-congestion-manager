@@ -4,15 +4,13 @@ import { isEqual, differenceBy, minBy, sumBy, meanBy, isEmpty } from 'lodash'
 import { socket } from 'zeromq'
 import { config } from '../config'
 import * as Redis from 'ioredis'
-import { MempoolTx, MempoolTxCustom, MempoolTxDefault } from './types'
-import { setItem, getBufferAdded, getBufferRemoved } from './redis-adapter'
+import { MempoolTx, MempoolTxCustom, MempoolTxDefault, GetBlock, MinDiff }
+  from './types'
+import { setItem, getBufferAdded, getBufferRemoved, getBufferBlockSize }
+  from './redis-adapter'
 
 const { integrateTimeAdded, integrateBlocksRemoved, timeRes, minSavingsRate, range } =
   config.constants
-
-const blockEffectiveSize =
-  config.constants.blockSize
-  * (1 - config.constants.minersReservedBlockRatio)
 
 const rpc = new RpcClient(config.rpc)
 
@@ -34,13 +32,49 @@ export const blockHash$: Observable<Buffer> =
     return () => s.close()
   }).share()
 
+const blockSize$ =
+  blockHash$
+    .flatMap((hash): Observable<GetBlock> =>
+      Observable.fromPromise(rpc.getBlock(hash.toString('hex'))))
+    .map(x => x.size)
+    .do(x => {
+      if (config.debug) {
+        console.log(`block size = ${x / 1e+6} MB`)
+      }
+    })
+
+const bufferBlockSizeInitial$ =
+  Observable.fromPromise(getBufferBlockSize())
+    .filter(x => !isEmpty(x))
+    .flatMap(x => x)
+
+const bufferBlockSize$ =
+  Observable.merge(bufferBlockSizeInitial$, blockSize$)
+    .bufferCount(integrateBlocksRemoved, 1)
+    .do(x => setItem('buffer_blocksize', x))
+
+const averageBlockSize$ =
+  bufferBlockSize$
+    .map(x => x
+      .reduce((acc, x) => acc + x / integrateBlocksRemoved, 0))
+
+const effectiveBlockSize$ =
+  averageBlockSize$
+    .map(x => x * (1 - config.constants.minersReservedBlockRatio))
+    .share()
+
 const interBlockInterval$ =
   blockHash$
     .timeInterval()
     .map(x => x.interval)
+    .do(x => {
+      if (config.debug) {
+        console.log(`ibi: ${x / 60e+3} minitues`)
+      }
+    })
     .share()
 
-export const sortByFee = (txs, cumSize = 0, targetBlock = 1, n = 1) =>
+export const sortByFee = (txs, blockSize: number, cumSize = 0, targetBlock = 1) =>
   Object.keys(txs)
     .map((txid) => ({
       size: <number>txs[txid].size,
@@ -53,9 +87,8 @@ export const sortByFee = (txs, cumSize = 0, targetBlock = 1, n = 1) =>
     .sort((a, b) => b.feeRate - a.feeRate)
     .map((tx): MempoolTx => {
       cumSize += tx.size
-      if (cumSize > n * blockEffectiveSize) {
+      if (cumSize > targetBlock * blockSize) {
         targetBlock += 1
-        n += 1
       }
       return { ...tx, cumSize, targetBlock }
     })
@@ -67,7 +100,8 @@ export const memPooler$ =
       Observable.fromPromise(rpc.getRawMemPool(true)))
     .scan((x, y) => !isEqual(x, y) ? y : x)
     .distinctUntilChanged()
-    .map(txs => sortByFee(txs))
+    .withLatestFrom(effectiveBlockSize$, (txs, blockSize) => ({ txs, blockSize }))
+    .map(({ txs, blockSize }) => sortByFee(txs, blockSize))
     .share()
 
 // time moving array containing the last 2 MempoolTx[]
@@ -90,12 +124,11 @@ export const minedTxs$ =
     .filter(txs => txs.length > 500) // reliable mined block proxy
 
 // range selector of a sorted list
-const rangeSelector = (xs: any[], edge0: number, edge1 = 0) => {
-  if (edge0 > edge1)
-    return xs.filter((_, x) =>
+const rangeSelector = (xs: any[], edge0: number, edge1 = 0) =>
+  edge0 > edge1
+    ? xs.filter((_, x) =>
       x > xs.length * (1 - edge0) && x <= xs.length * (1 - edge1))
-  else return []
-}
+    : []
 
 export const minedTxsSummary$ =
   minedTxs$
@@ -116,16 +149,14 @@ export const minedTxsSummary$ =
         }), {}),
       minFeeTx: minBy(txs, 'feeRate'),
     }))
-
-export const blockEffectiveSize$ =
-  minedTxsSummary$
-    .map(x => x.blockSize)
-    .bufferCount(integrateBlocksRemoved)
-    .map(x => x.reduce((acc, y) => acc + y / integrateBlocksRemoved, 0))
-
+    .do(x => {
+      if (config.debug) {
+        console.dir(x)
+      }
+    })
 
 const bufferAddedInitial$ =
-  Observable.fromPromise(getBufferAdded('buffer_added'))
+  Observable.fromPromise(getBufferAdded())
     .filter(x => !isEmpty(x))
 
 export const bufferAdded$ =
@@ -138,7 +169,7 @@ export const bufferAdded$ =
     .share()
 
 const bufferRemovedInitial$ =
-  Observable.fromPromise(getBufferRemoved('buffer_removed'))
+  Observable.fromPromise(getBufferRemoved())
     .filter(x => !isEmpty(x))
 
 // buffer all txs until next block mined
@@ -161,23 +192,21 @@ export const bufferRemoved$ =
 // returns bytes added to mempool / 10 min ahead of targetBlock
 export const addedBytesAheadTargetPer10min = (targetBlock: number) =>
   bufferAdded$
-    .map(txs => txs
-      .filter(tx => tx.cumSize < targetBlock * blockEffectiveSize)
+    .withLatestFrom(effectiveBlockSize$, (txs, blockSize) => ({ txs, blockSize }))
+    .map(({ txs, blockSize }) => txs
+      .filter(tx => tx.cumSize < targetBlock * blockSize)
       .reduce((acc, tx) => acc + tx.size, 0))
     // (B / ms) * 10 min
     .map(addSize => (addSize / integrateTimeAdded) * 10 * 60e+3) // per 10 min per B
     .distinctUntilChanged()
-    .do(x => {
-      if (config.debug)
-        console.log(`add velocity ahead of targetBlock ${targetBlock} is ${x / 1e+6} MW/10min`)
-    })
 
 export const removedBytesAheadTargetPer10min = (targetBlock: number) =>
   bufferRemoved$
+    .withLatestFrom(effectiveBlockSize$, (x, blockSize) => ({ ...x, blockSize }))
     .map(x => ({
       ibi: x.ibi,
       rmSize: x.txs
-        .filter(tx => tx.cumSize < targetBlock * blockEffectiveSize)
+        .filter(tx => tx.cumSize < targetBlock * x.blockSize)
         .reduce((acc, tx) => tx.size + acc, 0)
     }))
     .map(x => (x.rmSize / x.ibi) * 10 * 60e+3)
@@ -185,10 +214,6 @@ export const removedBytesAheadTargetPer10min = (targetBlock: number) =>
     .timestamp()
     .map(x => ({ rmV: x.value, rmtimestamp: x.timestamp }))
     .distinctUntilChanged()
-    .do(x => {
-      if (config.debug)
-        console.log(`rm velocity ${x.rmV / 1e+6} MW/10min`)
-    })
 
 // mempool growth velocity in B / 10 min ahead of targetBlock
 export const velocity = (targetBlock: number) =>
@@ -199,28 +224,21 @@ export const velocity = (targetBlock: number) =>
     .map(x => x.addV - x.rmV) // B / 10 min
     .scan((x, y) => !isEqual(x, y) ? y : x)
     .distinctUntilChanged()
+    .do(x => {
+      if (config.debug)
+        console.log(`velocity ahead of targetBlock ${targetBlock} is ${x / 1e+6} MB/10min`)
+    })
     .share()
 
-// export const finalPosition$ =
-//   memPooler$
-//     .map(txs => txs.find(tx => tx.targetBlock === 1 + 1))
-//     .filter(tx => tx !== undefined)
-//     .map((tx: MempoolTx) => tx.cumSize)
-//     .scan((x, y) => !isEqual(x, y) ? y : x)
-//     .distinctUntilChanged()
-//     .share()
-//     .do(x => {
-//       if (config.debug)
-//         console.log(`desired final position  ${x / 1e+6} MW`)
-//     })
-
-// the position x we aim to reach at time targetBlock
-const finalPosition$ = Observable.of(blockEffectiveSize)
+// // the position x we aim to reach at time targetBlock
+const finalPosition = (targetBlock: number) =>
+  effectiveBlockSize$
+    .map(blockSize => targetBlock * blockSize)
 
 // find the initial position x_0
 export const initialPosition = (targetBlock: number) =>
   Observable.combineLatest(
-    finalPosition$,
+    finalPosition(targetBlock),
     velocity(targetBlock),
     (x, v) => x - v * targetBlock)
     .scan((x, y) => !isEqual(x, y) ? y : x)
@@ -259,7 +277,7 @@ export const getFee = (targetBlock: number) =>
     .distinctUntilChanged()
     .do((x) => {
       if (config.debug)
-        console.log(`getFee ${x.targetBlock} = ${x.feeRate} satoshi/W @ ${new Date(x.timestamp)}`)
+        console.log(`getFee ${x.targetBlock} = ${x.feeRate} satoshi/B @ ${new Date(x.timestamp)}`)
     })
 
 const fees = range.map(getFee)
@@ -293,16 +311,13 @@ const square = (n: number) => n * n
 export const minDiff$ = feeDiff$
   .map(x => {
     let cumDiff = 0
-    let cumDiffNeg = 0
     return x.reduce((acc, fee, i, xs) => [
       ...acc,
-      i === 0
-        || (fee.targetBlock <= 1 && fee.diff / xs[0].feeRate >= minSavingsRate)
-        || -fee.diff / xs[i - 1].feeRate >= minSavingsRate
+      i === 0 || -fee.diff / xs[i - 1].feeRate >= minSavingsRate
         ? {
           ...fee,
-          cumDiff: fee.targetBlock > 1 ? cumDiff += fee.diff : cumDiffNeg += fee.diff / 10,
-          valid: fee.targetBlock > 1 ? fee.feeRate <= xs[0].feeRate : true,
+          cumDiff: cumDiff += fee.diff,
+          valid: fee.feeRate <= xs[0].feeRate,
         }
         : {
           ...fee,
@@ -316,10 +331,10 @@ export const minDiff$ = feeDiff$
         Math.sqrt(a.diff * a.cumDiff) / (a.targetBlock)
         - Math.sqrt(b.diff * b.cumDiff) / (b.targetBlock))
   })
+  .debounceTime(timeRes / 10)
   .scan((x, y) => !isEqual(x, y) ? y : x)
   .distinctUntilChanged()
   // .map(x => x
   //   .map(({ targetBlock, ...y }) => ({ confirmationMinutes: targetBlock * 10, ...y })))
   .share()
-
 

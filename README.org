@@ -45,6 +45,8 @@
 ** requirements
    - bitcoind full node with zmq push notifications enabled for blockhash
    - nodejs
+   - crossbar
+   - redis
 
 
 ** installation
