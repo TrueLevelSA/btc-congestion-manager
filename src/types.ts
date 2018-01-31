@@ -3,7 +3,7 @@ export type MempoolTx = MempoolTxDefault & MempoolTxCustom
 // drop some of the fields of the default tx in order to save memory
 // dropped fields commented out below
 export interface MempoolTxDefault {
-  size: number
+  // size: number
   fee: number
   // modifiedfee: number
   // time: number
@@ -18,6 +18,7 @@ export interface MempoolTxDefault {
 }
 
 export interface MempoolTxCustom {
+  size: number
   txid: string
   feeRate: number
   cumSize: number

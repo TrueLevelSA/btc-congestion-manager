@@ -1,24 +1,16 @@
-import * as forever from 'forever-monitor'
-const server1 = new (forever.Monitor)('dist/src/wamp-server.js', {
+import { Monitor } from 'forever-monitor'
+
+const options = {
   max: Number.POSITIVE_INFINITY,
   minUptime: 5000,
   spinSleepTime: 5000,
   silent: false,
-});
+}
 
-server1.on('exit', function() {
-  console.log('wamp-server.js has exited after infinity restarts');
-});
-server1.start()
+new (Monitor)('dist/src/wamp-publisher.js', options)
+  .on('exit', () => console.log('wamp-publisher.js has exited after infinity restarts'))
+  .start()
 
-const server2 = new (forever.Monitor)('dist/src/rest-server.js', {
-  max: Number.POSITIVE_INFINITY,
-  minUptime: 5000,
-  spinSleepTime: 5000,
-  silent: false,
-});
-
-server2.on('exit', function() {
-  console.log('rest-server.js has exited after infinity restarts');
-});
-server2.start()
+new (Monitor)('dist/src/rest-server.js', options)
+  .on('exit', () => console.log('rest-server.js has exited after infinity restarts'))
+  .start()

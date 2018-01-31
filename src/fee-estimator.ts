@@ -36,7 +36,7 @@ const blockSize$ =
   blockHash$
     .flatMap((hash): Observable<GetBlock> =>
       Observable.fromPromise(rpc.getBlock(hash.toString('hex'))))
-    .map(x => x.size)
+    .map(x => x.weight / 4)
     .do(x => {
       if (config.debug) {
         console.log(`block size = ${x / 1e+6} MB`)
@@ -207,7 +207,7 @@ export const removedBytesAheadTargetPer10min = (targetBlock: number) =>
       ibi: x.ibi,
       rmSize: x.txs
         .filter(tx => tx.cumSize < targetBlock * x.blockSize)
-        .reduce((acc, tx) => tx.size + acc, 0)
+        .reduce((acc, tx) => acc + tx.size, 0)
     }))
     .map(x => (x.rmSize / x.ibi) * 10 * 60e+3)
     .distinctUntilChanged()
@@ -287,19 +287,19 @@ export const feeDiff$ = Observable.combineLatest(...fees)
     .reduce((acc, fee, i, xs) =>
       [
         ...acc,
-        (i > 0)
+        (fee.targetBlock > 1)
           ? {
             ...fee,
-            diff: fee.targetBlock > 1
-              ? (xs[i].feeRate - xs[i - 1].feeRate) / (range[i] - range[i - 1])
-              : (xs[i].feeRate - xs[i - 1].feeRate) / -(range[i] - range[i - 1]),
+            diff: (xs[i].feeRate - xs[i - 1].feeRate) / (range[i] - range[i - 1])
           }
           : {
             ...fee,
             diff: 0,
           }
       ], [])
-    .filter(x => x.diff <= 0))
+    .filter(x => x.diff <= 0)
+    .filter(x => x.feeRate >= 4) // TODO: remove this line when i start hearing the 4 sat/vB txs 
+  )
   .scan((x, y) => !isEqual(x, y) ? y : x)
   .distinctUntilChanged()
 
@@ -310,31 +310,37 @@ const square = (n: number) => n * n
 // the next block estimated fee
 export const minDiff$ = feeDiff$
   .map(x => {
-    let cumDiff = 0
-    return x.reduce((acc, fee, i, xs) => [
-      ...acc,
-      i === 0 || -fee.diff / xs[i - 1].feeRate >= minSavingsRate
-        ? {
-          ...fee,
-          cumDiff: cumDiff += fee.diff,
-          valid: fee.feeRate <= xs[0].feeRate,
-        }
-        : {
-          ...fee,
-          cumDiff: NaN,
-          valid: false,
-        },
-    ], [])
+    let baseFeeRate: number
+    return x.reduce((acc, fee, i, xs) => {
+      if (fee.targetBlock === 1) { baseFeeRate = fee.feeRate }
+      return [
+        ...acc,
+        fee.targetBlock <= 1
+          || -fee.diff / xs[i - 1].feeRate >= minSavingsRate
+          ? {
+            ...fee,
+            cumDiff: fee.targetBlock > 1
+              ? fee.feeRate - baseFeeRate
+              : 0,
+            valid: fee.targetBlock > 1
+              ? fee.feeRate <= xs[i - 1].feeRate
+              : true,
+          }
+          : {
+            ...fee,
+            cumDiff: NaN,
+            valid: false,
+          },
+      ]
+    }, [])
       .filter(x => x.valid)
       .map(({ valid, ...x }) => x)
-      .sort((b, a) =>
-        Math.sqrt(a.diff * a.cumDiff) / (a.targetBlock)
-        - Math.sqrt(b.diff * b.cumDiff) / (b.targetBlock))
+      .sort((a, b) => a.targetBlock - b.targetBlock)
+    // .sort((b, a) =>
+    //   Math.sqrt(a.diff * a.cumDiff) / (a.targetBlock)
+    //   - Math.sqrt(b.diff * b.cumDiff) / (b.targetBlock))
   })
   .debounceTime(timeRes / 10)
   .scan((x, y) => !isEqual(x, y) ? y : x)
   .distinctUntilChanged()
-  // .map(x => x
-  //   .map(({ targetBlock, ...y }) => ({ confirmationMinutes: targetBlock * 10, ...y })))
   .share()
-
