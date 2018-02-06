@@ -22,10 +22,10 @@ app.get(
   '/',
   (_, res) => minDiffShare$
     .take(nReplay)
-    .retryWhen(errors =>
-      errors
-        .do(err => console.error(`Error: ${err}`))
-        .delayWhen(val => Observable.timer(config.constants.timeRes * 10)))
+  .retryWhen(errors =>
+    errors
+      .do(err => console.error(`Error: ${err}`))
+      .delayWhen(val => Observable.timer(config.constants.timeRes * 10)))
     .subscribe(
     x => res.send(x),
     err => { console.error(`error in server: ${err}`) },

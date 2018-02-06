@@ -6,7 +6,7 @@ import { config } from '../config'
 import * as Redis from 'ioredis'
 import { MempoolTx, MempoolTxCustom, MempoolTxDefault, GetBlock, MinDiff }
   from './types'
-import { setItem, getBufferAdded, getBufferRemoved, getBufferBlockSize }
+import { setItem, getBufferAdded, getBufferRemoved, getBufferBlockSize, getMinsFromLastBlock }
   from './redis-adapter'
 
 const { integrateTimeAdded, integrateBlocksRemoved, timeRes, minSavingsRate, range } =
@@ -39,7 +39,7 @@ const blockSize$ =
     .map(x => x.weight / 4)
     .do(x => {
       if (config.debug) {
-        console.log(`block size = ${x / 1e+6} MB`)
+        console.log(`block size = ${x / 1e+6} MvB`)
       }
     })
 
@@ -73,6 +73,19 @@ const interBlockInterval$ =
       }
     })
     .share()
+
+export const minsFromLastBlock$ =
+  Observable.merge(
+    Observable.fromPromise(getMinsFromLastBlock()),
+    blockHash$.mapTo(0)
+  )
+    .switchMap(x => Observable.timer(0, 60e+3).map(y => y + x))
+    .withLatestFrom(
+    blockHash$.map(x => x.toString('hex')),
+    (minutes, blockHash) => ({ minutes, blockHash }))
+    .do(x => console.log(`minsFromLastBlock ${x.minutes}`))
+    .do(x => setItem('minsfromlastblock', x.minutes))
+    .shareReplay(1)
 
 export const sortByFee = (txs, blockSize: number, cumSize = 0, targetBlock = 1) =>
   Object.keys(txs)
@@ -226,7 +239,7 @@ export const velocity = (targetBlock: number) =>
     .distinctUntilChanged()
     .do(x => {
       if (config.debug)
-        console.log(`velocity ahead of targetBlock ${targetBlock} is ${x / 1e+6} MB/10min`)
+        console.log(`velocity ahead of targetBlock ${targetBlock} is ${x / 1e+6} MvB/10min`)
     })
     .share()
 
@@ -240,12 +253,12 @@ export const initialPosition = (targetBlock: number) =>
   Observable.combineLatest(
     finalPosition(targetBlock),
     velocity(targetBlock),
-    (x, v) => x - v * targetBlock)
+    (x, v) => x - v > 0 ? v * (targetBlock - 1) : v * targetBlock)
     .scan((x, y) => !isEqual(x, y) ? y : x)
     .distinctUntilChanged()
     .do((x) => {
       if (config.debug)
-        console.log(`initialPosition for targetBlock ${targetBlock} ${x / 1e+6} MB`)
+        console.log(`initialPosition for targetBlock ${targetBlock} ${x / 1e+6} MvB`)
     })
 
 // find the tx in mempool closest to the estimated x_0, to observe how much it
@@ -298,7 +311,7 @@ export const feeDiff$ = Observable.combineLatest(...fees)
           }
       ], [])
     .filter(x => x.diff <= 0)
-    .filter(x => x.feeRate >= 4) // TODO: remove this line when i start hearing the 4 sat/vB txs 
+  // .filter(x => x.feeRate >= 4) // TODO: remove this line when i start hearing the 4 sat/vB txs
   )
   .scan((x, y) => !isEqual(x, y) ? y : x)
   .distinctUntilChanged()
@@ -310,9 +323,9 @@ const square = (n: number) => n * n
 // the next block estimated fee
 export const minDiff$ = feeDiff$
   .map(x => {
-    let baseFeeRate: number
+    let baseFeeRate = x.filter(x => x.targetBlock === 1)[0].feeRate
     return x.reduce((acc, fee, i, xs) => {
-      if (fee.targetBlock === 1) { baseFeeRate = fee.feeRate }
+      // if (fee.targetBlock === 1) { baseFeeRate = fee.feeRate }
       return [
         ...acc,
         fee.targetBlock <= 1
@@ -322,7 +335,7 @@ export const minDiff$ = feeDiff$
             cumDiff: fee.targetBlock > 1
               ? fee.feeRate - baseFeeRate
               : 0,
-            valid: fee.targetBlock > 1
+            valid: i >= 1
               ? fee.feeRate <= xs[i - 1].feeRate
               : true,
           }
@@ -336,9 +349,6 @@ export const minDiff$ = feeDiff$
       .filter(x => x.valid)
       .map(({ valid, ...x }) => x)
       .sort((a, b) => a.targetBlock - b.targetBlock)
-    // .sort((b, a) =>
-    //   Math.sqrt(a.diff * a.cumDiff) / (a.targetBlock)
-    //   - Math.sqrt(b.diff * b.cumDiff) / (b.targetBlock))
   })
   .debounceTime(timeRes / 10)
   .scan((x, y) => !isEqual(x, y) ? y : x)
