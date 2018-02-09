@@ -4,7 +4,7 @@ import { isEqual, differenceBy, minBy, sumBy, meanBy, isEmpty } from 'lodash'
 import { socket } from 'zeromq'
 import { config } from '../config'
 import * as Redis from 'ioredis'
-import { MempoolTx, MempoolTxCustom, MempoolTxDefault, GetBlock, MinDiff }
+import { MempoolTx, MempoolTxCustom, MempoolTxDefault, GetBlock, MinDiff, MinsFromLastBlock }
   from './types'
 import { setItem, getBufferAdded, getBufferRemoved, getBufferBlockSize, getMinsFromLastBlock }
   from './redis-adapter'
@@ -74,7 +74,7 @@ const interBlockInterval$ =
     })
     .share()
 
-export const minsFromLastBlock$ =
+export const minsFromLastBlock$: Observable<MinsFromLastBlock> =
   Observable.merge(
     Observable.fromPromise(getMinsFromLastBlock()),
     blockHash$.mapTo(0)
@@ -191,7 +191,7 @@ export const bufferRemoved$ =
     .merge(removedTxsShared$
       .flatMap(x => x)
       .map(tx => ({ size: tx.size, cumSize: tx.cumSize }))
-      .buffer(blockHash$.delay(5e+3)) // delay so that memPooler$ can update first
+      .buffer(blockHash$.delay(1e+3)) // delay so that memPooler$ can update first
       .withLatestFrom(interBlockInterval$, (txs, ibi) => ({ txs, ibi }))
       .bufferCount(integrateBlocksRemoved, 1)
       .map(x => x.reduce((acc, y) =>
@@ -253,7 +253,7 @@ export const initialPosition = (targetBlock: number) =>
   Observable.combineLatest(
     finalPosition(targetBlock),
     velocity(targetBlock),
-    (x, v) => x - v > 0 ? v * (targetBlock - 1) : v * targetBlock)
+    (x, v) => x - v * targetBlock)
     .scan((x, y) => !isEqual(x, y) ? y : x)
     .distinctUntilChanged()
     .do((x) => {
@@ -283,14 +283,14 @@ export const getFee = (targetBlock: number) =>
       // api becomes heavily used
       targetBlock,
       feeRate: x.value + 0.01,
-      timestamp: x.timestamp,
+      // timestamp: x.timestamp,
       date: new Date(x.timestamp),
     }))
     .scan((x, y) => !isEqual(x, y) ? y : x)
     .distinctUntilChanged()
     .do((x) => {
       if (config.debug)
-        console.log(`getFee ${x.targetBlock} = ${x.feeRate} satoshi/B @ ${new Date(x.timestamp)}`)
+        console.log(`getFee ${x.targetBlock} = ${x.feeRate} satoshi/B @ ${x.date}`)
     })
 
 const fees = range.map(getFee)
@@ -318,38 +318,43 @@ export const feeDiff$ = Observable.combineLatest(...fees)
 
 const square = (n: number) => n * n
 
-// cost function = sqrt(cumDiff * diff) / targetBlock. first value is the best
+const addScore = (minDiffs: Array<MinDiff & { diff: number }>) => {
+  const scores = minDiffs
+    .map(x =>
+      (1 - x.diff) / (x.targetBlock * x.feeRate))
+  const maxScore = Math.max(...scores)
+  return scores
+    .map((x, i) => ({ ...minDiffs[i], score: x / maxScore }))
+    .map(({ diff, ...x }) => ({ ...x }))
+}
+
+
 // deal, if any exist, otherwise its the next block estimated fee. last value is
 // the next block estimated fee
-export const minDiff$ = feeDiff$
-  .map(x => {
-    let baseFeeRate = x.filter(x => x.targetBlock === 1)[0].feeRate
-    return x.reduce((acc, fee, i, xs) => {
-      // if (fee.targetBlock === 1) { baseFeeRate = fee.feeRate }
-      return [
+export const minDiff$: Observable<MinDiff[]> = feeDiff$
+  .map(x =>
+    x.reduce((acc, fee, i, xs) =>
+      [
         ...acc,
-        fee.targetBlock <= 1
-          || -fee.diff / xs[i - 1].feeRate >= minSavingsRate
+        i === 0
+          || (xs[i - 1].feeRate - xs[i].feeRate) / xs[i - 1].feeRate >= minSavingsRate
           ? {
             ...fee,
-            cumDiff: fee.targetBlock > 1
-              ? fee.feeRate - baseFeeRate
-              : 0,
             valid: i >= 1
               ? fee.feeRate <= xs[i - 1].feeRate
               : true,
           }
           : {
             ...fee,
-            cumDiff: NaN,
             valid: false,
           },
       ]
-    }, [])
+      , [])
       .filter(x => x.valid)
       .map(({ valid, ...x }) => x)
       .sort((a, b) => a.targetBlock - b.targetBlock)
-  })
+  )
+  .map(x => addScore(x))
   .debounceTime(timeRes / 10)
   .scan((x, y) => !isEqual(x, y) ? y : x)
   .distinctUntilChanged()

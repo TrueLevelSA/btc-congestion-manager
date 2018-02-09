@@ -24,6 +24,6 @@ export const config = {
     integrateBlocksRemoved: 18, // averaging 18 blocks
     timeRes: 10e+3,
     minersReservedBlockRatio: 0.05,
-    minSavingsRate: 0.05,
+    minSavingsRate: 0.1,
   }
 }
