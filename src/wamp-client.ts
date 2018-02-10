@@ -9,7 +9,7 @@ export const minedTxSummary$ =
     .flatMap(x => x.args)
 
 export const minDiff$ =
-  wamp.topic('com.fee.mindiff')
+  wamp.topic('com.fee.deals')
     .flatMap(x => x.args)
 
 // Observable.merge(

@@ -355,7 +355,7 @@ export const minDiff$: Observable<MinDiff[]> = feeDiff$
       .sort((a, b) => a.targetBlock - b.targetBlock)
   )
   .map(x => addScore(x))
-  .debounceTime(timeRes / 10)
+  .debounceTime(timeRes / 5)
   .scan((x, y) => !isEqual(x, y) ? y : x)
   .distinctUntilChanged()
   .share()

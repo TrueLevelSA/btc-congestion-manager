@@ -8,7 +8,7 @@ const wamp = new Client(config.wamp.url, config.wamp.realm)
 wamp.publish('com.fee.minsfromlastblock', minsFromLastBlock$)
 wamp.publish('com.fee.minedtxssummary', minedTxsSummary$)
 wamp.publish(
-  'com.fee.mindiff',
+  'com.fee.deals',
   minDiff$
     .retryWhen(errors =>
       errors

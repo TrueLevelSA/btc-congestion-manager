@@ -19,7 +19,11 @@ export const config = {
     url: 'localhost',
   },
   constants: {
-    range: [...range(.5, 1, 1 / 4), 1, ...range(1.5, 2, 1 / 4), ...range(2, 48, 1)],
+    range: [
+      ...range(.5, 1, 1 / 4), 1,
+      ...range(1.5, 3, 1 / 4),
+      ...range(3, 48, 1)
+    ],
     integrateTimeAdded: 60 * 60e+3, // averaging 60 min
     integrateBlocksRemoved: 18, // averaging 18 blocks
     timeRes: 10e+3,

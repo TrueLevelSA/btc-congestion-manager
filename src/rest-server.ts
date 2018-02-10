@@ -9,7 +9,7 @@ const wamp = new Client(config.wamp.url, config.wamp.realm)
 const nReplay = 1
 
 const minDiff$: Observable<MinDiff[]> =
-  wamp.topic('com.fee.mindiff')
+  wamp.topic('com.fee.deals')
     .flatMap(y => y.args)
 
 const minDiffShare$ = minDiff$.shareReplay(nReplay)
@@ -32,10 +32,6 @@ app.get(
   '/btc/deals',
   (_, res) => minDiffShare$
     .take(nReplay)
-    .retryWhen(errors =>
-      errors
-        .do(err => console.error(`Error: ${err}`))
-        .delayWhen(val => Observable.timer(config.constants.timeRes * 10)))
     .subscribe(
     x => res.send(x),
     err => { console.error(`error in server: ${err}`) },
@@ -47,10 +43,6 @@ app.get(
   '/btc/minutes',
   (_, res) => minsFromLastBlockShare$
     .take(nReplay)
-    .retryWhen(errors =>
-      errors
-        .do(err => console.error(`Error: ${err}`))
-        .delayWhen(val => Observable.timer(config.constants.timeRes * 10)))
     .subscribe(
     x => res.send(x),
     err => { console.error(`error in server: ${err}`) },
