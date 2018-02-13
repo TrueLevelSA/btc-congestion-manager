@@ -10,8 +10,12 @@ wamp.publish('com.fee.minedtxssummary', minedTxsSummary$)
 wamp.publish(
   'com.fee.deals',
   minDiff$
-    .retryWhen(errors =>
-      errors
-        .do(err => console.error(`Error: ${err}`))
-        .delayWhen(val => Observable.timer(config.constants.timeRes * 10)))
-)
+    .retryWhen(error$ =>
+      error$
+        .do(err => {
+          console.error()
+          console.error(`------ ${new Date()} ------`)
+          console.error(err)
+          console.error(`------------`)
+        })
+        .delay(config.constants.timeRes)))

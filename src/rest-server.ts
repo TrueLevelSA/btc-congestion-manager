@@ -46,7 +46,6 @@ app.get(
     .subscribe(
     x => res.send(x),
     err => { console.error(`error in server: ${err}`) },
-    // () => console.log('Successly sent price!')
   )
 )
 

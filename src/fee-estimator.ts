@@ -35,7 +35,10 @@ export const blockHash$: Observable<Buffer> =
 const blockSize$ =
   blockHash$
     .flatMap((hash): Observable<GetBlock> =>
-      Observable.fromPromise(rpc.getBlock(hash.toString('hex'))))
+      Observable.fromPromise(
+        rpc.getBlock(hash.toString('hex'))
+          .then(res => res)
+          .catch(err => err)))
     .map(x => x.weight / 4)
     .do(x => {
       if (config.debug) {
@@ -109,8 +112,11 @@ export const sortByFee = (txs, blockSize: number, cumSize = 0, targetBlock = 1) 
 export const memPooler$ =
   Observable.timer(0, timeRes)
     .merge(blockHash$) // emit when new block found
-    .flatMap((_): Observable<MempoolTx[]> =>
-      Observable.fromPromise(rpc.getRawMemPool(true)))
+    .flatMap((): Observable<MempoolTx[]> =>
+      Observable.fromPromise(
+        rpc.getRawMemPool(true)
+          .then(res => res)
+          .catch(err => err)))
     .scan((x, y) => !isEqual(x, y) ? y : x)
     .distinctUntilChanged()
     .withLatestFrom(effectiveBlockSize$, (txs, blockSize) => ({ txs, blockSize }))
@@ -297,6 +303,7 @@ const fees = range.map(getFee)
 
 export const feeDiff$ = Observable.combineLatest(...fees)
   .map(x => x
+    .filter((x) => x.feeRate !== undefined)
     .reduce((acc, fee, i, xs) =>
       [
         ...acc,
@@ -311,7 +318,6 @@ export const feeDiff$ = Observable.combineLatest(...fees)
           }
       ], [])
     .filter(x => x.diff <= 0)
-  // .filter(x => x.feeRate >= 4) // TODO: remove this line when i start hearing the 4 sat/vB txs
   )
   .scan((x, y) => !isEqual(x, y) ? y : x)
   .distinctUntilChanged()
@@ -321,7 +327,7 @@ const square = (n: number) => n * n
 const addScore = (minDiffs: Array<MinDiff & { diff: number }>) => {
   const scores = minDiffs
     .map(x =>
-      (1 - x.diff) / (x.targetBlock * x.feeRate))
+      (10 - x.diff) / (x.targetBlock * x.feeRate))
   const maxScore = Math.max(...scores)
   return scores
     .map((x, i) => ({ ...minDiffs[i], score: x / maxScore }))
@@ -348,8 +354,7 @@ export const minDiff$: Observable<MinDiff[]> = feeDiff$
             ...fee,
             valid: false,
           },
-      ]
-      , [])
+      ], [])
       .filter(x => x.valid)
       .map(({ valid, ...x }) => x)
       .sort((a, b) => a.targetBlock - b.targetBlock)
