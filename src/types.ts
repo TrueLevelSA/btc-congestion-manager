@@ -25,7 +25,7 @@ export interface MempoolTxCustom {
   targetBlock: number
 }
 
-export interface MinDiff {
+export interface Deal {
   // cumDiff: number
   // diff: number
   targetBlock: number

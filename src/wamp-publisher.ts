@@ -1,4 +1,4 @@
-import { minDiff$, minedTxsSummary$, minsFromLastBlock$ } from './fee-estimator'
+import { dealer$, minedTxsSummary$, minsFromLastBlock$ } from './fee-estimator'
 import { Observable } from 'rxjs'
 import { config } from '../config'
 import { Client } from 'thruway.js'
@@ -9,12 +9,11 @@ wamp.publish('com.fee.minsfromlastblock', minsFromLastBlock$)
 wamp.publish('com.fee.minedtxssummary', minedTxsSummary$)
 wamp.publish(
   'com.fee.deals',
-  minDiff$
-    .retryWhen(error$ =>
+  dealer$.retryWhen(error$ =>
       error$
         .do(err => {
           console.error()
-          console.error(`------ ${new Date()} ------`)
+          console.error(`------ ${(new Date()).toString()} ------`)
           console.error(err)
           console.error(`------------`)
         })

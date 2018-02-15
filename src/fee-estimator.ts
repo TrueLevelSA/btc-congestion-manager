@@ -4,7 +4,7 @@ import { isEqual, differenceBy, minBy, sumBy, meanBy, isEmpty } from 'lodash'
 import { socket } from 'zeromq'
 import { config } from '../config'
 import * as Redis from 'ioredis'
-import { MempoolTx, MempoolTxCustom, MempoolTxDefault, GetBlock, MinDiff, MinsFromLastBlock }
+import { MempoolTx, MempoolTxCustom, MempoolTxDefault, GetBlock, Deal, MinsFromLastBlock }
   from './types'
 import { setItem, getBufferAdded, getBufferRemoved, getBufferBlockSize, getMinsFromLastBlock }
   from './redis-adapter'
@@ -324,7 +324,7 @@ export const feeDiff$ = Observable.combineLatest(...fees)
 
 const square = (n: number) => n * n
 
-const addScore = (minDiffs: Array<MinDiff & { diff: number }>) => {
+const addScore = (minDiffs: Array<Deal & { diff: number }>) => {
   const scores = minDiffs
     .map(x =>
       (10 - x.diff) / (x.targetBlock * x.feeRate))
@@ -337,7 +337,7 @@ const addScore = (minDiffs: Array<MinDiff & { diff: number }>) => {
 
 // deal, if any exist, otherwise its the next block estimated fee. last value is
 // the next block estimated fee
-export const minDiff$: Observable<MinDiff[]> = feeDiff$
+export const dealer$: Observable<Deal[]> = feeDiff$
   .map(x =>
     x.reduce((acc, fee, i, xs) =>
       [
