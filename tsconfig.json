@@ -10,7 +10,7 @@
         "emitDecoratorMetadata": true,
         "experimentalDecorators": true,
         "strictNullChecks": true,
-        "target": "ES6",
+        "target": "ES5",
         "lib": ["ES6", "DOM"],
         "typeRoots": [
             "./node_modules/@types"
