@@ -214,7 +214,7 @@ export const addedBytesAheadTargetPer10min = (targetBlock: number) =>
     .withLatestFrom(effectiveBlockSize$, (txs, blockSize) => ({ txs, blockSize }))
     .map(({ txs, blockSize }) => txs
       .filter(tx => tx.cumSize < targetBlock * blockSize)
-      .reduce((acc, tx) => acc + tx.size, 0))
+      .reduce((acc, tx) => !isNaN(tx.size) ? acc + tx.size : acc, 0))
     // (B / ms) * 10 min
     .map(addSize => (addSize / integrateTimeAdded) * 10 * 60e+3) // per 10 min per B
     .distinctUntilChanged()
@@ -226,7 +226,7 @@ export const removedBytesAheadTargetPer10min = (targetBlock: number) =>
       ibi: x.ibi,
       rmSize: x.txs
         .filter(tx => tx.cumSize < targetBlock * x.blockSize)
-        .reduce((acc, tx) => acc + tx.size, 0)
+        .reduce((acc, tx) => !isNaN(tx.size) ? acc + tx.size : acc, 0)
     }))
     .map(x => (x.rmSize / x.ibi) * 10 * 60e+3)
     .distinctUntilChanged()
