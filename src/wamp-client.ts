@@ -5,11 +5,11 @@ const wamp = new Client(config.wamp.url, config.wamp.realm)
 
 
 export const minedTxSummary$ =
-  wamp.topic('com.fee.minedtxssummary')
+  wamp.topic('com.fee.v1.btc.minedtxssummary')
     .flatMap(x => x.args)
 
 export const minDiff$ =
-  wamp.topic('com.fee.deals')
+  wamp.topic('com.fee.v1.btc.deals')
     .flatMap(x => x.args)
 
 // Observable.merge(
