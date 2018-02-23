@@ -128,6 +128,9 @@ export const memPooler$ =
     .map(({ txs, blockSize }) => sortByFee(txs, blockSize))
     .share()
 
+export const mempollMaxBlock$ = memPooler$.map(x => x[x.length - 1].targetBlock)
+  .distinctUntilChanged()
+
 // time moving array containing the last 2 MempoolTx[]
 export const last2Mempools$ =
   memPooler$
@@ -187,7 +190,12 @@ export const bufferAdded$ =
   bufferAddedInitial$
     .merge(addedTxs$
       .flatMap(x => x)
-      .map(x => ({ size: x.size, cumSize: x.cumSize }))
+      // .timestamp()
+      .map(x => ({
+        size: x.size,
+        cumSize: x.cumSize,
+        // timestamp: x.timestamp
+      }))
       .bufferTime(integrateTimeAdded, timeRes)
       .do(x => setItem('buffer_added', x)))
     .share()
@@ -202,7 +210,7 @@ export const bufferRemoved$ =
     .merge(removedTxsShared$
       .flatMap(x => x)
       .map(tx => ({ size: tx.size, cumSize: tx.cumSize }))
-      .buffer(blockHash$.delay(1e+3)) // delay so that memPooler$ can update first
+      .buffer(blockHash$.delay(50)) // delay so that memPooler$ can update first
       .withLatestFrom(interBlockInterval$, (txs, ibi) => ({ txs, ibi }))
       .bufferCount(integrateBlocksRemoved, 1)
       .map(x => x.reduce((acc, y) =>
@@ -307,6 +315,7 @@ export const getFee = (targetBlock: number) =>
 const fees = config.constants.range.map(getFee)
 
 export const feeDiff$ = Observable.combineLatest(...fees)
+  .combineLatest(mempollMaxBlock$, (x, maxBlock) => x.filter(y => y.targetBlock < maxBlock))
   .map(x => x
     .filter((x) => x.feeRate !== undefined)
     .reduce((acc, fee, i, xs) =>
