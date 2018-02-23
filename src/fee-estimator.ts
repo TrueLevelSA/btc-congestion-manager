@@ -1,6 +1,6 @@
 import * as RpcClient from 'bitcoin-core'
 import { Observable, Subscriber } from 'rxjs'
-import { isEqual, differenceBy, minBy, sumBy, meanBy, isEmpty } from 'lodash'
+import { isEqual, differenceBy, minBy, sumBy, meanBy, isEmpty, range } from 'lodash'
 import { socket } from 'zeromq'
 import { config } from '../config'
 import * as Redis from 'ioredis'
@@ -9,7 +9,7 @@ import { MempoolTx, MempoolTxCustom, MempoolTxDefault, GetBlock, Deal, MinsFromL
 import { setItem, getBufferAdded, getBufferRemoved, getBufferBlockSize, getMinsFromLastBlock }
   from './redis-adapter'
 
-const { integrateTimeAdded, integrateBlocksRemoved, timeRes, minSavingsRate, range } =
+const { integrateTimeAdded, integrateBlocksRemoved, timeRes, minSavingsRate } =
   config.constants
 
 const rpc = new RpcClient(config.rpc)
@@ -304,7 +304,7 @@ export const getFee = (targetBlock: number) =>
         console.log(`getFee ${x.targetBlock} = ${x.feeRate} satoshi/B @ ${x.date}`)
     })
 
-const fees = range.map(getFee)
+const fees = config.constants.range.map(getFee)
 
 export const feeDiff$ = Observable.combineLatest(...fees)
   .map(x => x
@@ -315,7 +315,8 @@ export const feeDiff$ = Observable.combineLatest(...fees)
         (fee.targetBlock > 1)
           ? {
             ...fee,
-            diff: (xs[i].feeRate - xs[i - 1].feeRate) / (range[i] - range[i - 1])
+            diff: (xs[i].feeRate - xs[i - 1].feeRate)
+              / (config.constants.range[i] - config.constants.range[i - 1])
           }
           : {
             ...fee,
@@ -352,7 +353,7 @@ export const dealer$: Observable<Deal[]> = feeDiff$
           ? {
             ...fee,
             valid: i >= 1
-              ? fee.feeRate <= xs[i - 1].feeRate
+              ? range(0, i - 1).every(j => fee.feeRate <= xs[j].feeRate)
               : true,
           }
           : {
