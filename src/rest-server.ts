@@ -40,7 +40,7 @@ app.get(
 )
 
 app.get(
-  '/btc/minutes',
+  '/btc/minsfromlastblock',
   (_, res) => minsFromLastBlockShare$
     .take(nReplay)
     .subscribe(

@@ -15,7 +15,11 @@ export const setItem = async (key: string, value: any) => {
 export const getBufferAdded = async (): Promise<{ size: number, cumSize: number }[]> => {
   const key = 'buffer_added'
   try {
-    return JSON.parse(await redis.get(key))
+    const data: { size: number, cumSize: number }[] =
+      JSON.parse(await redis.get(key))
+    return data.filter(x =>
+      x.cumSize != null && !isNaN(x.cumSize)
+      && x.size != null && !isNaN(x.size))
   } catch (err) {
     return err
   }
@@ -24,7 +28,13 @@ export const getBufferAdded = async (): Promise<{ size: number, cumSize: number 
 export const getBufferRemoved = async (): Promise<{ txs: { size: number, cumSize: number }[], ibi: number }> => {
   const key = 'buffer_removed'
   try {
-    return JSON.parse(await redis.get(key))
+    const data: { txs: { size: number, cumSize: number }[], ibi: number } =
+      JSON.parse(await redis.get(key))
+    const txs = data.txs.filter(x =>
+      x.cumSize != null && !isNaN(x.cumSize)
+      && x.size != null && !isNaN(x.size))
+    // const ibi = data.ibi != null && !isNaN(data.ibi) ? data.ibi : 60e3
+    return { txs, ibi: data.ibi }
   } catch (err) {
     return err
   }
@@ -33,7 +43,8 @@ export const getBufferRemoved = async (): Promise<{ txs: { size: number, cumSize
 export const getBufferBlockSize = async (): Promise<number[]> => {
   const key = 'buffer_blocksize'
   try {
-    return JSON.parse(await redis.get(key))
+    const data: number[] = JSON.parse(await redis.get(key))
+    return data.filter(x => x != null && !isNaN(x))
   } catch (err) {
     return err
   }
@@ -42,7 +53,8 @@ export const getBufferBlockSize = async (): Promise<number[]> => {
 export const getMinsFromLastBlock = async (): Promise<number> => {
   const key = 'minsfromlastblock'
   try {
-    return JSON.parse(await redis.get(key))
+    const data = JSON.parse(await redis.get(key))
+    return JSON.parse(data)
   } catch (err) {
     return err
   }

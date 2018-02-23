@@ -90,16 +90,23 @@ export const minsFromLastBlock$: Observable<MinsFromLastBlock> =
     .do(x => setItem('minsfromlastblock', x.minutes))
     .shareReplay(1)
 
+const valid = (x: number) => x != null && !isNaN(x) && x >= 0
+
 export const sortByFee = (txs, blockSize: number, cumSize = 0, targetBlock = 1) =>
   Object.keys(txs)
     .map((txid) => ({
       size: <number>txs[txid].size,
       fee: <number>txs[txid].fee,
-      descendantsize: <number>txs[txid].descendentsize,
-      descendantfees: <number>txs[txid].descendentfees,
+      descendantsize: <number>txs[txid].descendantsize,
+      descendantfees: <number>txs[txid].descendantfees,
       txid,
       feeRate: txs[txid].descendantfees / txs[txid].descendantsize,
     }))
+    .filter(x => valid(x.size)
+      && valid(x.fee)
+      && valid(x.descendantsize)
+      && valid(x.descendantfees)
+      && valid(x.feeRate))
     .sort((a, b) => b.feeRate - a.feeRate)
     .map((tx): MempoolTx => {
       cumSize += tx.size
@@ -112,7 +119,7 @@ export const sortByFee = (txs, blockSize: number, cumSize = 0, targetBlock = 1) 
 export const memPooler$ =
   Observable.timer(0, timeRes)
     .merge(blockHash$) // emit when new block found
-    .flatMap((): Observable<MempoolTx[]> =>
+    .flatMap((): Observable<any> =>
       Observable.fromPromise(
         rpc.getRawMemPool(true)
           .then(res => res)
@@ -325,9 +332,9 @@ export const feeDiff$ = Observable.combineLatest(...fees)
 const square = (n: number) => n * n
 
 const addScore = (minDiffs: Array<Deal & { diff: number }>) => {
-  const scores = minDiffs
-    .map(x =>
-      (10 - x.diff) / (x.targetBlock * x.feeRate))
+  const meanFee = meanBy(minDiffs, 'feeRate')
+  const scores = minDiffs.map(x =>
+    (meanFee - x.diff) / (x.targetBlock * x.feeRate))
   const maxScore = Math.max(...scores)
   return scores
     .map((x, i) => ({ ...minDiffs[i], score: x / maxScore }))
