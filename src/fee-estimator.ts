@@ -90,7 +90,7 @@ export const minsFromLastBlock$: Observable<MinsFromLastBlock> =
     .do(x => setItem('minsfromlastblock', x.minutes))
     .shareReplay(1)
 
-const valid = (x: number) => x != null && !isNaN(x) && x >= 0
+const isValid = (x: number) => x != null && !isNaN(x) && x >= 0
 
 export const sortByFee = (txs, blockSize: number, cumSize = 0, targetBlock = 1) =>
   Object.keys(txs)
@@ -102,11 +102,11 @@ export const sortByFee = (txs, blockSize: number, cumSize = 0, targetBlock = 1) 
       txid,
       feeRate: txs[txid].descendantfees / txs[txid].descendantsize,
     }))
-    .filter(x => valid(x.size)
-      && valid(x.fee)
-      && valid(x.descendantsize)
-      && valid(x.descendantfees)
-      && valid(x.feeRate))
+    .filter(x => isValid(x.size)
+      && isValid(x.fee)
+      && isValid(x.descendantsize)
+      && isValid(x.descendantfees)
+      && isValid(x.feeRate))
     .sort((a, b) => b.feeRate - a.feeRate)
     .map((tx): MempoolTx => {
       cumSize += tx.size
@@ -124,8 +124,6 @@ export const memPooler$ =
         rpc.getRawMemPool(true)
           .then(res => res)
           .catch(err => err)))
-    .scan((x, y) => !isEqual(x, y) ? y : x)
-    .distinctUntilChanged()
     .withLatestFrom(effectiveBlockSize$, (txs, blockSize) => ({ txs, blockSize }))
     .map(({ txs, blockSize }) => sortByFee(txs, blockSize))
     .share()
