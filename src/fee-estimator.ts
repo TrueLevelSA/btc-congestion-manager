@@ -84,8 +84,8 @@ export const minsFromLastBlock$: Observable<MinsFromLastBlock> =
   )
     .switchMap(x => Observable.timer(0, 60e+3).map(y => y + x))
     .withLatestFrom(
-    blockHash$.map(x => x.toString('hex')),
-    (minutes, blockHash) => ({ minutes, blockHash }))
+      blockHash$.map(x => x.toString('hex')),
+      (minutes, blockHash) => ({ minutes, blockHash }))
     .do(x => console.log(`minsFromLastBlock ${x.minutes}`))
     .do(x => setItem('minsfromlastblock', x.minutes))
     .shareReplay(1)
@@ -315,9 +315,14 @@ export const getFee = (targetBlock: number) =>
 const fees = config.constants.range.map(getFee)
 
 export const feeDiff$ = Observable.combineLatest(...fees)
-  .combineLatest(mempollMaxBlock$, (x, maxBlock) => x.filter(y => y.targetBlock < maxBlock))
+  .combineLatest(
+    mempollMaxBlock$,
+    (fees, maxBlock) => fees
+      .filter(y => y.targetBlock !== undefined && y.feeRate !== undefined
+        ? y.targetBlock < maxBlock
+        : false)
+  )
   .map(x => x
-    .filter((x) => x.feeRate !== undefined)
     .reduce((acc, fee, i, xs) =>
       [
         ...acc,
