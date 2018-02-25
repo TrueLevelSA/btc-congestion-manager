@@ -128,8 +128,12 @@ export const memPooler$ =
     .map(({ txs, blockSize }) => sortByFee(txs, blockSize))
     .share()
 
-export const mempollMaxBlock$ = memPooler$.map(x => x[x.length - 1].targetBlock)
-  .distinctUntilChanged()
+// export const mempollMaxBlock$ = memPooler$.map(x => {
+//   const y = x[x.length - 1]
+//   if (y && y.targetBlock) return y.targetBlock
+//   else return config.constants.range[config.constants.range.length - 1]
+// })
+//   .distinctUntilChanged()
 
 // time moving array containing the last 2 MempoolTx[]
 export const last2Mempools$ =
@@ -315,14 +319,15 @@ export const getFee = (targetBlock: number) =>
 const fees = config.constants.range.map(getFee)
 
 export const feeDiff$ = Observable.combineLatest(...fees)
-  .combineLatest(
-    mempollMaxBlock$,
-    (fees, maxBlock) => fees
-      .filter(y => y.targetBlock !== undefined && y.feeRate !== undefined
-        ? y.targetBlock < maxBlock
-        : false)
-  )
+  // .combineLatest(
+  //   mempollMaxBlock$,
+  //   (fees, maxBlock) => fees
+  //     .filter(y => y.targetBlock !== undefined && y.feeRate !== undefined
+  //       ? y.targetBlock < maxBlock
+  //       : false)
+  // )
   .map(x => x
+    .filter(y => y.feeRate != null && y.targetBlock != null)
     .reduce((acc, fee, i, xs) =>
       [
         ...acc,
