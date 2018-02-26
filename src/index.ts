@@ -10,8 +10,3 @@ const options = {
 new (Monitor)('dist/src/wamp-publisher.js', options)
   .on('exit', () => console.log('wamp-publisher.js has exited after infinity restarts'))
   .start()
-
-
-new (Monitor)('dist/src/rest-server.js', options)
-  .on('exit', () => console.log('rest-server.js has exited after infinity restarts'))
-  .start()
