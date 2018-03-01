@@ -25,7 +25,6 @@ const dealerRecover$ = dealer$
         console.error(`------------`)
       })
       .delay(config.constants.timeRes))
-    .share()
 
 const sub0 = wamp.publish('com.fee.v1.btc.minsfromlastblock', minsFromLastBlock$)
 const sub1 = wamp.publish('com.fee.v1.btc.minedtxssummary', minedTxsSummary$)
