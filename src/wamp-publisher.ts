@@ -25,15 +25,22 @@ const dealerRecover$ = dealer$
         console.error(`------------`)
       })
       .delay(config.constants.timeRes))
+    .share()
 
 const sub0 = wamp.publish('com.fee.v1.btc.minsfromlastblock', minsFromLastBlock$)
 const sub1 = wamp.publish('com.fee.v1.btc.minedtxssummary', minedTxsSummary$)
 let sub2 = wamp.publish('com.fee.v1.btc.deals', dealerRecover$)
 
-const counter = dealerRecover$
+const resubscriber = () => dealerRecover$
   .timeInterval()
   .filter(x => x.interval > 25e3)
-  .do(_ => {
-    sub2.add(() => sub2 = wamp.publish('com.fee.v1.btc.deals', dealerRecover$)).unsubscribe()
-  })
+  .subscribe(
+  () => {
+    sub2.unsubscribe()
+    sub2 = wamp.publish('com.fee.v1.btc.deals', dealerRecover$)
+  },
+  () => resubscriber(),
+  () => resubscriber()
+  )
 
+resubscriber()
