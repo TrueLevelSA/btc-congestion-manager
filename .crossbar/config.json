@@ -6,23 +6,44 @@
         "realms": [{
             "name": "realm1",
             "roles": [{
-                "name": "bcm-be",
-                "permissions": [{
-                    "uri": "",
-                    "match": "prefix",
-                    "allow": {
-                        "call": false,
-                        "register": false,
-                        "publish": true,
-                        "subscribe": true
-                    },
-                    "disclose": {
-                        "caller": false,
-                        "publisher": false
-                    },
-                    "cache": true
-                }]
-            }]
+                    "name": "bcm-be",
+                    "permissions": [{
+                        "uri": "",
+                        "match": "prefix",
+                        "allow": {
+                            "call": false,
+                            "register": false,
+                            "publish": true,
+                            "subscribe": true
+                        },
+                        "disclose": {
+                            "caller": false,
+                            "publisher": false
+                        },
+                        "cache": true
+                    }]
+                },
+                {
+                    "name": "relayer",
+                    "permissions": [{
+                        "uri": "",
+                        "match": "prefix",
+                        "allow": {
+                            "call": false,
+                            "register": false,
+                            "publish": false,
+                            "subscribe": true
+                        },
+                        "disclose": {
+                            "caller": false,
+                            "publisher": false
+                        },
+                        "cache": true
+                    }]
+                }
+            ]
+
+
         }],
         "transports": [{
             "type": "universal",
@@ -41,6 +62,10 @@
                                 "bcm-be": {
                                     "secret": "ANSIBLE_ME",
                                     "role": "bcm-be"
+                                },
+                                "relayer": {
+                                    "secret": "ANSIBLE_ME",
+                                    "role": "relayer"
                                 }
                             }
                         }
