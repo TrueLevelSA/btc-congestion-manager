@@ -38,7 +38,7 @@
                         "wampcra": {
                             "type": "static",
                             "users": {
-                                "relayer": {
+                                "bcm-be": {
                                     "secret": "ANSIBLE_ME",
                                     "role": "bcm-be"
                                 }
