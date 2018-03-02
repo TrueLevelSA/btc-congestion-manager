@@ -10,6 +10,8 @@ export const config = {
   wamp: {
     url: 'ws://localhost:8080/ws',
     realm: 'realm1',
+    key: 'ANSIBLE_ME',
+    user: 'bcm-be',
   },
   zmq_socket: {
     url: 'tcp://localhost:28333',

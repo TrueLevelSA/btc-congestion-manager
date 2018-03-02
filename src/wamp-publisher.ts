@@ -2,8 +2,20 @@ import { dealer$, minedTxsSummary$, minsFromLastBlock$ } from './fee-estimator'
 import { Observable } from 'rxjs'
 import { config } from '../config'
 import { Client } from 'thruway.js'
+import { auth_cra } from 'autobahn'
 
-const wamp = new Client(config.wamp.url, config.wamp.realm)
+const wamp = new Client(
+  config.wamp.url,
+  config.wamp.realm,
+  {
+    authmethods: ['wampcra'],
+    role: config.wamp.user,
+    authid: config.wamp.user,
+  }
+)
+
+wamp.onChallenge(challenge => challenge
+  .map((x) => auth_cra.sign(config.wamp.key, x.extra.challenge)))
 
 wamp.publish(
   'com.fee.all',
