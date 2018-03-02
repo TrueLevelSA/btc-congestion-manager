@@ -46,13 +46,12 @@
 
         }],
         "transports": [{
-            "type": "universal",
+            "type": "web",
             "endpoint": {
                 "type": "tcp",
                 "port": 8080
             },
-            "rawsocket": {},
-            "websocket": {
+            "paths": {
                 "ws": {
                     "type": "websocket",
                     "auth": {
