@@ -59,11 +59,11 @@
                             "type": "static",
                             "users": {
                                 "bcm-be": {
-                                    "secret": "ANSIBLE_ME",
+                                    "secret": "bcm-be",
                                     "role": "bcm-be"
                                 },
                                 "relayer": {
-                                    "secret": "ANSIBLE_ME",
+                                    "secret": "relayer",
                                     "role": "relayer"
                                 }
                             }
