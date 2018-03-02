@@ -42,16 +42,14 @@ const sub0 = wamp.publish('com.fee.v1.btc.minsfromlastblock', minsFromLastBlock$
 const sub1 = wamp.publish('com.fee.v1.btc.minedtxssummary', minedTxsSummary$)
 let sub2 = wamp.publish('com.fee.v1.btc.deals', dealerRecover$)
 
-const resubscriber = () => dealerRecover$
+const suicideOnStall = () => dealerRecover$
   .timeInterval()
-  .filter(x => x.interval > 25e3)
+  .filter(x => x.interval > config.constants.timeRes * 10)
   .subscribe(
   () => {
     sub2.unsubscribe()
-    sub2 = wamp.publish('com.fee.v1.btc.deals', dealerRecover$)
-  },
-  () => resubscriber(),
-  () => resubscriber()
+    process.exit() // will be relauched by forevermonitor
+  }
   )
 
-resubscriber()
+suicideOnStall()
