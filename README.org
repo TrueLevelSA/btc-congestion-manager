@@ -48,50 +48,6 @@
    - crossbar
    - redis
 
-
-** installation
-   
-*** install package and compile typescript code
-    #+BEGIN_SRC sh
-    git clone git@github.com:dlebrecht/bitcoin-congestion-manager.git
-    cd bitcoin-congestion-manger
-    npm i
-    tsc
-    #+END_SRC
-  
-*** install crossbar 
-    #+BEGIN_SRC sh
-    virtualenv -p python3 penv
-    source penv/bin/activate
-    pip3 install crossbar
-    #+END_SRC
-
-** running
-*** start crossbar
-    #+BEGIN_SRC sh
-    source penv/bin/activate
-    crossbar start
-    #+END_SRC
-
-*** start bitcoind node
-    #+BEGIN_SRC sh
-    bitcoind --daemon
-    #+END_SRC
-
-*** start fee-estimator
-    #+BEGIN_SRC sh
-    node dist/src/fee-estimator.js
-    #+END_SRC
-
-*** start rest server
-    #+BEGIN_SRC sh
-    node dist/src/rest-server.js
-    #+END_SRC
-
-** problem
-   - given the transactions present in the mempool, find the feeRate that would
-     be placed at the end of a chosen block
-
 ** diagram 
    - data from [2018-01-01 16:48:56]
    #+BEGIN_SRC
@@ -115,19 +71,13 @@
    - all txs are sorted according to weight of the whole branch involving all
      its decendents
    - we calculate how many transactions are added ahead of a target block to
-     estimate average velocity (estimate comes from the past 1/2 hour -- set
+     estimate average velocity (estimate comes from the past 1 hour -- set
      that in config.ts)
-   - we assume probability of finding a new block at any time is constant.
+   - we assume probability of finding a new block at any time is constant (Poison).
    - we use the sorted list of txs to determine x. knowing x and vt we can
      calculate x_0 (using eq1) -- x_0 is a position in B
    - we look up the feeRate paid by that tx closest to where x_0 falls and use
-     that feeRate * 0.999 (avoid spurious minimum)
-   - best deal calculation (to be improved -- PR welcome): take the derivative
-     of feeRate targetting different blocks, and call it diffFeeRate. cost
-     function is: diffFeeRate / sqrt(targetBlock). and best deal is the head of
-     that sorted list
-     
-
-** todo
-- [ ] rpc pull the block txs to create statistics, not the txs_nr > 500 that
-  disappear at once hack
+     that feeRate + 0.01 (avoid spurious minimum)
+   - best deal calculation using the derivative of feeRates over waiting times, 
+     and suggesting rate with big savings
+    
