@@ -90,7 +90,7 @@ export const minsFromLastBlock$: Observable<MinsFromLastBlock> =
     .do(x => setItem('minsfromlastblock', x.minutes))
     .shareReplay(1)
 
-const isValid = (x: number) => x != null && !isNaN(x) && x >= 0
+const isValid = (x: number) => x != null && !isNaN(x) && x > 0
 
 export const sortByFee = (txs, blockSize: number, cumSize = 0, targetBlock = 1) =>
   Object.keys(txs)
