@@ -355,7 +355,7 @@ const addScore = (minDiffs: Array<Deal & { diff: number }>) => {
 
 // deal, if any exist, otherwise its the next block estimated fee. last value is
 // the next block estimated fee
-export const dealer$: Observable<Deal[]> = feeDiff$
+export const dealer$: Observable<Array<Deal & {score: number}>> = feeDiff$
   .map(x =>
     x.reduce((acc, fee, i, xs) =>
       [
