@@ -28,6 +28,7 @@ export interface MempoolTxCustom {
 export interface Deal {
   // cumDiff: number
   // diff: number
+  score: number
   targetBlock: number
   feeRate: number
   // timestamp: number

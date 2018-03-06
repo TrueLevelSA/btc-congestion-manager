@@ -128,13 +128,6 @@ export const memPooler$ =
     .map(({ txs, blockSize }) => sortByFee(txs, blockSize))
     .share()
 
-// export const mempollMaxBlock$ = memPooler$.map(x => {
-//   const y = x[x.length - 1]
-//   if (y && y.targetBlock) return y.targetBlock
-//   else return config.constants.range[config.constants.range.length - 1]
-// })
-//   .distinctUntilChanged()
-
 // time moving array containing the last 2 MempoolTx[]
 export const last2Mempools$ =
   memPooler$
@@ -214,7 +207,7 @@ export const bufferRemoved$ =
     .merge(removedTxsShared$
       .flatMap(x => x)
       .map(tx => ({ size: tx.size, cumSize: tx.cumSize }))
-      .buffer(blockHash$.delay(50)) // delay so that memPooler$ can update first
+      .buffer(blockHash$.delay(1.5e3)) // delay so that memPooler$ can update first
       .withLatestFrom(interBlockInterval$, (txs, ibi) => ({ txs, ibi }))
       .bufferCount(integrateBlocksRemoved, 1)
       .map(x => x.reduce((acc, y) =>
@@ -319,13 +312,6 @@ export const getFee = (targetBlock: number) =>
 const fees = config.constants.range.map(getFee)
 
 export const feeDiff$ = Observable.combineLatest(...fees)
-  // .combineLatest(
-  //   mempollMaxBlock$,
-  //   (fees, maxBlock) => fees
-  //     .filter(y => y.targetBlock !== undefined && y.feeRate !== undefined
-  //       ? y.targetBlock < maxBlock
-  //       : false)
-  // )
   .map(x => x
     .filter(y => y.feeRate != null && y.targetBlock != null)
     .reduce((acc, fee, i, xs) =>
@@ -335,7 +321,7 @@ export const feeDiff$ = Observable.combineLatest(...fees)
           ? {
             ...fee,
             diff: (xs[i].feeRate - xs[i - 1].feeRate)
-              / (config.constants.range[i] - config.constants.range[i - 1])
+            / (config.constants.range[i] - config.constants.range[i - 1])
           }
           : {
             ...fee,
@@ -349,10 +335,17 @@ export const feeDiff$ = Observable.combineLatest(...fees)
 
 const square = (n: number) => n * n
 
+const median = (values: number[]) => {
+  values.sort((a, b) => a - b)
+  var half = Math.floor(values.length / 2)
+  if (values.length % 2) return values[half]
+  else return (values[half - 1] + values[half]) / 2
+}
+
 const addScore = (minDiffs: Array<Deal & { diff: number }>) => {
-  const meanFee = meanBy(minDiffs, 'feeRate')
+  const medianFee = median(minDiffs.map(x => x.feeRate))
   const scores = minDiffs.map(x =>
-    (meanFee - x.diff) / (x.targetBlock * x.feeRate))
+    (medianFee - x.diff) / (x.targetBlock * x.feeRate))
   const maxScore = Math.max(...scores)
   return scores
     .map((x, i) => ({ ...minDiffs[i], score: x / maxScore }))
