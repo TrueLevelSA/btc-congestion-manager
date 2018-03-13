@@ -245,9 +245,9 @@ export const removedBytesAheadTargetPer10min = (targetBlock: number) =>
     }))
     .filter(x => isValid(x.rmSize) && isValid(x.ibi))
     .map(x => (x.rmSize / x.ibi) * 10 * 60e+3)
-    .distinctUntilChanged()
     .timestamp()
     .map(x => ({ rmV: x.value, rmtimestamp: x.timestamp }))
+    .distinctUntilChanged()
 
 // mempool growth velocity in B / 10 min ahead of targetBlock
 export const velocity = (targetBlock: number) =>
