@@ -84,8 +84,8 @@ export const minsFromLastBlock$: Observable<MinsFromLastBlock> =
   )
     .switchMap(x => Observable.timer(0, 60e+3).map(y => y + x))
     .withLatestFrom(
-      blockHash$.map(x => x.toString('hex')),
-      (minutes, blockHash) => ({ minutes, blockHash }))
+    blockHash$.map(x => x.toString('hex')),
+    (minutes, blockHash) => ({ minutes, blockHash }))
     .do(x => console.log(`minsFromLastBlock ${x.minutes}`))
     .do(x => setItem('minsfromlastblock', x.minutes))
     .shareReplay(1)
@@ -119,7 +119,7 @@ export const sortByFee = (txs, blockSize: number, cumSize = 0, targetBlock = 1) 
 export const memPooler$ =
   Observable.timer(0, timeRes)
     .merge(blockHash$) // emit when new block found
-    .flatMap((): Observable<any> =>
+    .switchMap((): Observable<any> =>
       Observable.fromPromise(
         rpc.getRawMemPool(true)
           .then(res => res)
@@ -206,6 +206,7 @@ export const bufferRemoved$ =
   bufferRemovedInitial$
     .merge(removedTxsShared$
       .flatMap(x => x)
+      .filter(tx => isValid(tx.size) && isValid(tx.cumSize))
       .map(tx => ({ size: tx.size, cumSize: tx.cumSize }))
       .buffer(blockHash$.delay(1.5e3)) // delay so that memPooler$ can update first
       .withLatestFrom(interBlockInterval$, (txs, ibi) => ({ txs, ibi }))
@@ -223,8 +224,10 @@ export const addedBytesAheadTargetPer10min = (targetBlock: number) =>
   bufferAdded$
     .withLatestFrom(effectiveBlockSize$, (txs, blockSize) => ({ txs, blockSize }))
     .map(({ txs, blockSize }) => txs
-      .filter(tx => tx.cumSize < targetBlock * blockSize)
-      .reduce((acc, tx) => !isNaN(tx.size) ? acc + tx.size : acc, 0))
+      .filter(tx => isValid(tx.size)
+        && isValid(tx.cumSize)
+        && tx.cumSize < targetBlock * blockSize)
+      .reduce((acc, tx) => acc + tx.size, 0))
     // (B / ms) * 10 min
     .map(addSize => (addSize / integrateTimeAdded) * 10 * 60e+3) // per 10 min per B
     .distinctUntilChanged()
@@ -235,14 +238,16 @@ export const removedBytesAheadTargetPer10min = (targetBlock: number) =>
     .map(x => ({
       ibi: x.ibi,
       rmSize: x.txs
-        .filter(tx => tx.cumSize < targetBlock * x.blockSize)
-        .reduce((acc, tx) => !isNaN(tx.size) ? acc + tx.size : acc, 0)
+        .filter(tx => isValid(tx.size)
+          && isValid(tx.cumSize)
+          && tx.cumSize < targetBlock * x.blockSize)
+        .reduce((acc, tx) => acc + tx.size, 0)
     }))
+    .filter(x => isValid(x.rmSize) && isValid(x.ibi))
     .map(x => (x.rmSize / x.ibi) * 10 * 60e+3)
     .distinctUntilChanged()
     .timestamp()
     .map(x => ({ rmV: x.value, rmtimestamp: x.timestamp }))
-    .distinctUntilChanged()
 
 // mempool growth velocity in B / 10 min ahead of targetBlock
 export const velocity = (targetBlock: number) =>
@@ -250,6 +255,7 @@ export const velocity = (targetBlock: number) =>
     addedBytesAheadTargetPer10min(targetBlock),
     removedBytesAheadTargetPer10min(targetBlock),
     (addV, rmV) => ({ addV, ...rmV }))
+    .filter(x => isValid(x.addV) && isValid(x.rmV))
     .map(x => x.addV - x.rmV) // B / 10 min
     .scan((x, y) => !isEqual(x, y) ? y : x)
     .distinctUntilChanged()
@@ -262,6 +268,7 @@ export const velocity = (targetBlock: number) =>
 // // the position x we aim to reach at time targetBlock
 const finalPosition = (targetBlock: number) =>
   effectiveBlockSize$
+    .filter(blockSize => isValid(blockSize))
     .map(blockSize => targetBlock * blockSize)
 
 // find the initial position x_0
@@ -282,7 +289,9 @@ export const initialPosition = (targetBlock: number) =>
 export const getFeeTx = (targetBlock: number) =>
   initialPosition(targetBlock)
     .combineLatest(memPooler$, (pos, txs) => ({ pos, txs }))
+    .filter(x => isValid(x.pos))
     .map(x => x.txs
+      .filter(tx => isValid(tx.cumSize))
       .map(tx => ({ ...tx, distance: Math.abs(tx.cumSize - x.pos) })))
     .map(x => minBy(x, y => y.distance))
     .filter(x => x !== undefined)
@@ -313,7 +322,7 @@ const fees = config.constants.range.map(getFee)
 
 export const feeDiff$ = Observable.combineLatest(...fees)
   .map(x => x
-    .filter(y => y.feeRate != null && y.targetBlock != null)
+    .filter(y => isValid(y.feeRate))
     .reduce((acc, fee, i, xs) =>
       [
         ...acc,
@@ -352,12 +361,12 @@ const addScore = (minDiffs: Array<Deal & { diff: number }>) => {
     .map(({ diff, ...x }) => ({ ...x }))
 }
 
-
-// deal, if any exist, otherwise its the next block estimated fee. last value is
-// the next block estimated fee
-export const dealer$: Observable<Array<Deal & {score: number}>> = feeDiff$
-  .map(x =>
-    x.reduce((acc, fee, i, xs) =>
+// the dealer picks the best deals by finding places where there are large fee
+// jumps on the queue
+export const dealer$: Observable<Array<Deal & { score: number }>> = feeDiff$
+  .map(x => x
+    .filter(fee => isValid(fee.feeRate))
+    .reduce((acc, fee, i, xs) =>
       [
         ...acc,
         i === 0
@@ -373,9 +382,9 @@ export const dealer$: Observable<Array<Deal & {score: number}>> = feeDiff$
             valid: false,
           },
       ], [])
-      .filter(x => x.valid)
-      .map(({ valid, ...x }) => x)
-      .sort((a, b) => a.targetBlock - b.targetBlock)
+    .filter(x => x.valid)
+    .map(({ valid, ...x }) => x)
+    .sort((a, b) => a.targetBlock - b.targetBlock)
   )
   .map(x => addScore(x))
   .debounceTime(timeRes / 5)

@@ -27,22 +27,23 @@ wamp.publish(
     ]
   )
 )
-// const dealerRecover$ = dealer$
-//   .retryWhen(error$ =>
-//     error$
-//       .do(err => {
-//         console.error()
-//         console.error(`------ ${(new Date()).toString()} ------`)
-//         console.error(err)
-//         console.error(`------------`)
-//       })
-//       .delay(config.constants.timeRes))
+const dealerRecover$ = dealer$
+  .retryWhen(error$ =>
+    error$
+      .do(err => {
+        console.error()
+        console.error(`------ ${(new Date()).toString()} ------`)
+        console.error(err)
+        console.error(`------------`)
+      })
+      .delay(config.constants.timeRes))
+  .share()
 
 const sub0 = wamp.publish('com.fee.v1.btc.minsfromlastblock', minsFromLastBlock$)
 const sub1 = wamp.publish('com.fee.v1.btc.minedtxssummary', minedTxsSummary$)
-let sub2 = wamp.publish('com.fee.v1.btc.deals', dealer$)
+let sub2 = wamp.publish('com.fee.v1.btc.deals', dealerRecover$)
 
-const suicideOnStall = () => dealer$
+const suicideOnStall = () => dealerRecover$
   .timeInterval()
   .filter(x => x.interval > config.constants.timeRes * 10)
   .subscribe(
