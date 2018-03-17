@@ -39,6 +39,7 @@ const blockSize$ =
         rpc.getBlock(hash.toString('hex'))
           .then(res => res)
           .catch(err => err)))
+    .filter(x => isValid(x.weight))
     .map(x => x.weight / 4)
     .do(x => {
       if (config.debug) {
