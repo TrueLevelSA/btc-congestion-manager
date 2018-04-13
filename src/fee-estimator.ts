@@ -60,6 +60,7 @@ const bufferBlockSize$ =
 const averageBlockSize$ =
   bufferBlockSize$
     .map(x => x
+      .filter(isValid)
       .reduce((acc, x) => acc + x / integrateBlocksRemoved, 0))
 
 const effectiveBlockSize$ =
@@ -85,8 +86,8 @@ export const minsFromLastBlock$: Observable<MinsFromLastBlock> =
   )
     .switchMap(x => Observable.timer(0, 60e+3).map(y => y + x))
     .withLatestFrom(
-    blockHash$.map(x => x.toString('hex')),
-    (minutes, blockHash) => ({ minutes, blockHash }))
+      blockHash$.map(x => x.toString('hex')),
+      (minutes, blockHash) => ({ minutes, blockHash }))
     .do(x => console.log(`minsFromLastBlock ${x.minutes}`))
     .do(x => setItem('minsfromlastblock', x.minutes))
     .shareReplay(1)
@@ -321,6 +322,7 @@ export const getFee = (targetBlock: number) =>
 
 const fees = config.constants.range.map(getFee)
 
+// take the derivative of fee over targetBlock
 export const feeDiff$ = Observable.combineLatest(...fees)
   .map(x => x
     .filter(y => isValid(y.feeRate))
@@ -331,7 +333,7 @@ export const feeDiff$ = Observable.combineLatest(...fees)
           ? {
             ...fee,
             diff: (xs[i].feeRate - xs[i - 1].feeRate)
-            / (config.constants.range[i] - config.constants.range[i - 1])
+              / (config.constants.range[i] - config.constants.range[i - 1])
           }
           : {
             ...fee,
@@ -352,6 +354,7 @@ const median = (values: number[]) => {
   else return (values[half - 1] + values[half]) / 2
 }
 
+// quantify relative goodness of the fee estimates
 const addScore = (minDiffs: Array<Deal & { diff: number }>) => {
   const medianFee = median(minDiffs.map(x => x.feeRate))
   const scores = minDiffs.map(x =>
@@ -363,7 +366,7 @@ const addScore = (minDiffs: Array<Deal & { diff: number }>) => {
 }
 
 // the dealer picks the best deals by finding places where there are large fee
-// jumps on the queue
+// jumps on the queue (larger than minSavingsRate).
 export const dealer$: Observable<Array<Deal & { score: number }>> = feeDiff$
   .map(x => x
     .filter(fee => isValid(fee.feeRate))

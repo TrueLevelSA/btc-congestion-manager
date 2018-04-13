@@ -26,8 +26,8 @@ export const config = {
       ...range(1.5, 3, 1 / 4),
       ...range(3, 48, 1)
     ],
-    integrateTimeAdded: 60 * 60e+3, // averaging 60 min
-    integrateBlocksRemoved: 18, // averaging 18 blocks
+    integrateTimeAdded: 2 * 60 * 60e+3, // averaging 2 h data
+    integrateBlocksRemoved: 36, // averaging 36 blocks
     timeRes: 5e+3,
     minersReservedBlockRatio: 0.05,
     minSavingsRate: 0.05,
