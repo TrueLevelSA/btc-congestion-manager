@@ -318,6 +318,10 @@ export const getFee = (targetBlock: number) =>
     .do((x) => {
       if (config.debug)
         console.log(`getFee ${x.targetBlock} = ${x.feeRate} satoshi/B @ ${x.date}`)
+    }).startWith({
+      targetBlock,
+      feeRate: 1000000,
+      date: new Date(),
     })
 
 const fees = config.constants.range.map(getFee)
