@@ -38,7 +38,7 @@ const blockSize$ =
       Observable.fromPromise(
         rpc.getBlock(hash.toString('hex'))
           .then(res => res)
-          .catch(err => err)))
+          .catch(err => { throw err })))
     .filter(x => isValid(x.weight))
     .map(x => x.weight / 4)
     .do(x => {
@@ -125,7 +125,7 @@ export const memPooler$ =
       Observable.fromPromise(
         rpc.getRawMemPool(true)
           .then(res => res)
-          .catch(err => err)))
+          .catch(err => { throw err })))
     .withLatestFrom(effectiveBlockSize$, (txs, blockSize) => ({ txs, blockSize }))
     .map(({ txs, blockSize }) => sortByFee(txs, blockSize))
     .share()

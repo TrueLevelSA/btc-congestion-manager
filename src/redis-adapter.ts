@@ -8,7 +8,7 @@ export const setItem = async (key: string, value: any) => {
   try {
     return await redis.set(key, JSON.stringify(value))
   } catch (err) {
-    return err
+    throw err
   }
 }
 
@@ -21,7 +21,7 @@ export const getBufferAdded = async (): Promise<{ size: number, cumSize: number 
       x.cumSize != null && !isNaN(x.cumSize)
       && x.size != null && !isNaN(x.size))
   } catch (err) {
-    return err
+    throw err
   }
 }
 
@@ -36,7 +36,7 @@ export const getBufferRemoved = async (): Promise<{ txs: { size: number, cumSize
     // const ibi = data.ibi != null && !isNaN(data.ibi) ? data.ibi : 60e3
     return { txs, ibi: data.ibi }
   } catch (err) {
-    return err
+    throw err
   }
 }
 
@@ -46,7 +46,7 @@ export const getBufferBlockSize = async (): Promise<number[]> => {
     const data: number[] = JSON.parse(await redis.get(key))
     return data.filter(x => x != null && !isNaN(x))
   } catch (err) {
-    return err
+    throw err
   }
 }
 
@@ -56,6 +56,6 @@ export const getMinsFromLastBlock = async (): Promise<number> => {
     const data = JSON.parse(await redis.get(key))
     return JSON.parse(data)
   } catch (err) {
-    return err
+    throw err
   }
 }

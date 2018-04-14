@@ -49,6 +49,7 @@ const suicideOnStall = () => dealerRecover$
   .subscribe(
   () => {
     sub2.unsubscribe()
+    console.error('suicide due to stall')
     process.exit() // will be relauched by forevermonitor
   }
   )
