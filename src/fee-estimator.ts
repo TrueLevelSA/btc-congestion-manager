@@ -320,7 +320,7 @@ export const getFee = (targetBlock: number) =>
         console.log(`getFee ${x.targetBlock} = ${x.feeRate} satoshi/B @ ${x.date}`)
     }).startWith({
       targetBlock,
-      feeRate: 1000000,
+      feeRate: NaN,
       date: new Date(),
     })
 
