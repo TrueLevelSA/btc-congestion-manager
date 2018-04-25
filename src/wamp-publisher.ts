@@ -41,7 +41,7 @@ const dealerRecover$ = dealer$
 
 const sub0 = wamp.publish('com.fee.v1.btc.minsfromlastblock', minsFromLastBlock$)
 const sub1 = wamp.publish('com.fee.v1.btc.minedtxssummary', minedTxsSummary$)
-let sub2 = wamp.publish('com.fee.v1.btc.deals', dealer$)
+let sub2 = wamp.publish('com.fee.v1.btc.deals', dealerRecover$)
 
 const suicideOnStall = () => dealerRecover$
   .timeInterval()

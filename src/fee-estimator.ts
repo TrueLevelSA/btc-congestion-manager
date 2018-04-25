@@ -396,7 +396,6 @@ export const dealer$: Observable<Array<Deal & { score: number }>> = feeDiff$
     .sort((a, b) => a.targetBlock - b.targetBlock)
   )
   .map(x => addScore(x))
-  .debounceTime(timeRes / 5)
   .scan((x, y) => !isEqual(x, y) ? y : x)
   .distinctUntilChanged()
   .share()
