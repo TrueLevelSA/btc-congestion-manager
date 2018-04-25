@@ -328,6 +328,7 @@ const fees = config.constants.range.map(getFee)
 
 // take the derivative of fee over targetBlock
 export const feeDiff$ = Observable.combineLatest(...fees)
+  .filter(x => x != null)
   .map(x => x
     .filter(y => isValid(y.feeRate))
     .reduce((acc, fee, i, xs) =>
