@@ -64,7 +64,11 @@ const averageBlockSize$ =
       .reduce((acc, x) => acc + x / integrateBlocksRemoved, 0))
 
 const effectiveBlockSize$ =
-  averageBlockSize$
+  /* the following line was making the estimator believe blocks were too small
+   * when mempool was empty for too long, thus i substituted with a hardcoded
+   * blocksize */
+  // averageBlockSize$
+  Observable.of(config.constants.blockSize)
     .map(x => x * (1 - config.constants.minersReservedBlockRatio))
     .share()
 
@@ -326,7 +330,7 @@ export const getFee = (targetBlock: number) =>
 
 const fees = config.constants.range.map(getFee)
 
-// take the derivative of fee over targetBlock
+// take the derivative (diff) of feeRate over targetBlock
 export const feeDiff$ = Observable.combineLatest(...fees)
   .filter(x => x != null)
   .map(x => x
@@ -354,7 +358,7 @@ const square = (n: number) => n * n
 
 const median = (values: number[]) => {
   values.sort((a, b) => a - b)
-  var half = Math.floor(values.length / 2)
+  const half = Math.floor(values.length / 2)
   if (values.length % 2) return values[half]
   else return (values[half - 1] + values[half]) / 2
 }
