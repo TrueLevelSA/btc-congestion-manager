@@ -17,11 +17,11 @@ export const getBufferAdded = async (): Promise<{ size: number, cumSize: number 
   try {
     const data: { size: number, cumSize: number }[] =
       JSON.parse(await redis.get(key))
-    return typeof data.filter === "function"
-      ? data.filter(x =>
+    if(typeof data.filter === "function")
+      return data.filter(x =>
         x.cumSize != null && !isNaN(x.cumSize)
         && x.size != null && !isNaN(x.size))
-      : []
+      else return []
   } catch (err) {
     throw err
   }
@@ -46,9 +46,10 @@ export const getBufferBlockSize = async (): Promise<number[]> => {
   const key = 'buffer_blocksize'
   try {
     const data: number[] = JSON.parse(await redis.get(key))
-      return typeof data.filter === "function"
-          ? data.filter(x => x != null && !isNaN(x))
-          : []
+      if(typeof data.filter === "function")
+          return data.filter(x => x != null && !isNaN(x))
+      else
+          return []
   } catch (err) {
     throw err
   }
