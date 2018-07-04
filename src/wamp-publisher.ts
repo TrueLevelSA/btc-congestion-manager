@@ -51,7 +51,8 @@ const suicideOnStall = () => dealerRecover$
       sub2.unsubscribe()
       console.error()
       console.error(`------ ${(new Date()).toString()} ------`)
-      console.error('Suicide because no new estimates arrive at wamp-publisher!')
+      console.error(`Suicide because no new estimates arrived at wamp-publisher for > ${(config.constants.timeRes * 10) / 1e+3} seconds`)
+      console.error(`----------------------------------------`)
       console.error()
       process.exit() // will be relauched by forevermonitor
     }
