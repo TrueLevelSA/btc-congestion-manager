@@ -34,7 +34,7 @@ export const blockHash$: Observable<Buffer> =
 
 const blockSize$ =
   blockHash$
-    .flatMap((hash): Observable<GetBlock> =>
+    .switchMap((hash): Observable<GetBlock> =>
       Observable.fromPromise(
         rpc.getBlock(hash.toString('hex'))
           .then(res => res)
@@ -50,7 +50,7 @@ const blockSize$ =
 const bufferBlockSizeInitial$ =
   Observable.fromPromise(getBufferBlockSize())
     .filter(x => !isEmpty(x))
-    .flatMap(x => x)
+    .switchMap(x => x)
 
 const bufferBlockSize$ =
   Observable.merge(bufferBlockSizeInitial$, blockSize$)
@@ -192,7 +192,7 @@ const bufferAddedInitial$ =
 export const bufferAdded$ =
   bufferAddedInitial$
     .merge(addedTxs$
-      .flatMap(x => x)
+      .switchMap(x => x)
       // .timestamp()
       .map(x => ({
         size: x.size,
@@ -211,7 +211,7 @@ const bufferRemovedInitial$ =
 export const bufferRemoved$ =
   bufferRemovedInitial$
     .merge(removedTxsShared$
-      .flatMap(x => x)
+      .switchMap(x => x)
       .filter(tx => isValid(tx.size) && isValid(tx.cumSize))
       .map(tx => ({ size: tx.size, cumSize: tx.cumSize }))
       .buffer(blockHash$.delay(1.5e3)) // delay so that memPooler$ can update first
