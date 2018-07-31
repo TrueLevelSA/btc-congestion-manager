@@ -39,22 +39,32 @@ const dealerRecover$ = dealer$
       .delay(config.constants.timeRes))
   .share()
 
-const sub0 = wamp.publish('com.fee.v1.btc.minsfromlastblock', minsFromLastBlock$)
-const sub1 = wamp.publish('com.fee.v1.btc.minedtxssummary', minedTxsSummary$)
-let sub2 = wamp.publish('com.fee.v1.btc.deals', dealerRecover$)
+// this is an ordinary client, listening for new value, like any other outside
+// subscriber
+const monitoring$ = wamp.topic('com.fee.v1.btc.deals')
+    .flatMap(y => y.args)
 
-const suicideOnStall = () => dealerRecover$
+wamp.publish('com.fee.v1.btc.minsfromlastblock', minsFromLastBlock$)
+wamp.publish('com.fee.v1.btc.minedtxssummary', minedTxsSummary$)
+wamp.publish('com.fee.v1.btc.deals', dealerRecover$)
+
+// if monitoring$ doesn't produce new values for too long, kill process
+const suicideOnStall = () => monitoring$
   .timeInterval()
   .filter(x => x.interval > config.constants.timeRes * 10)
   .subscribe(
     () => {
-      sub2.unsubscribe()
       console.error()
       console.error(`------ ${(new Date()).toString()} ------`)
-      console.error(`Suicide because no new estimates arrived at wamp-publisher for > ${(config.constants.timeRes * 10) / 1e+3} seconds`)
+      console.error(`Suicide because no estimates published by wamp-publisher for > ${(config.constants.timeRes * 10) / 1e+3} seconds`)
       console.error(`----------------------------------------`)
       console.error()
       process.exit() // will be relauched by forevermonitor
+    }, (e) => {
+        console.error()
+        console.error(`------ ${(new Date()).toString()} ------`)
+        console.error("Failed suicide attempt, with error:\n", e)
+        console.error(`----------------------------------------`)
     }
   )
 
