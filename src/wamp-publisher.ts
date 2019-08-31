@@ -9,13 +9,13 @@ const wamp = new Client(
   config.wamp.realm,
   {
     authmethods: ['wampcra'],
-    role: config.wamp.user,
+    role: config.wamp.role,
     authid: config.wamp.user,
   }
 )
 
 wamp.onChallenge(challenge => challenge
-  .map((x) => auth_cra.sign(config.wamp.key, x.extra.challenge)))
+  .map((x) => auth_cra.sign(config.wamp.key, (x.extra as any).challenge)))
 
 wamp.publish(
   'com.fee.all',
@@ -59,7 +59,7 @@ const suicideOnStall = () => monitoring$
       console.error(`Suicide because no estimates published by wamp-publisher for > ${(config.constants.timeRes * 10) / 1e+3} seconds`)
       console.error(`----------------------------------------`)
       console.error()
-      process.exit() // will be relauched by forevermonitor
+      process.exit() // will be relaunched by forevermonitor
     }, (e) => {
         console.error()
         console.error(`------ ${(new Date()).toString()} ------`)

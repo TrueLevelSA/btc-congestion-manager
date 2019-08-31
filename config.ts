@@ -1,24 +1,29 @@
 import { range } from 'lodash'
+import { ConfigManager } from './src/ConfigManager';
+
+const configManager = ConfigManager.getInstance();
+
 export const config = {
-  debug: true,
+  debug: process.env.NODE_ENV === 'development',
   rpc: {
-    host: '127.0.0.1',
-    port: 8332,
-    username: 'test',
-    password: 'test',
+    host: configManager.getString('RPC_HOST', '127.0.0.1'),
+    port: configManager.getNumber('RPC_PORT', 8332),
+    username: configManager.getString('RPC_USERNAME', 'test'),
+    password: configManager.getString('RPC_PASSWORD', 'test'),
   },
   wamp: {
-    url: 'ws://localhost:8080/ws',
-    realm: 'realm1',
-    key: 'bcm-be',
-    user: 'bcm-be',
+    url: configManager.getString('WAMP_WS', 'ws://localhost:8080/ws'),
+    realm: configManager.getString('WAMP_REALM', 'realm1'),
+    key: configManager.getString('WAMP_KEY', 'bcm-be'),
+    user: configManager.getString('WAMP_USER', 'bcm-be'),
+    role: configManager.getString('WAMP_ROLE', configManager.getString('WAMP_USER', 'bcm-be'))
   },
   zmq_socket: {
-    url: 'tcp://localhost:28333',
+    url: configManager.getString('ZMQ_URL', 'tcp://localhost:28333'),
   },
   redis: {
-    port: 6379,
-    url: 'localhost',
+    port: configManager.getNumber('REDIS_PORT', 6379),
+    url: configManager.getString('REDIS_HOST', 'localhost'),
   },
   constants: {
     range: [

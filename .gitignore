@@ -5,3 +5,4 @@
 /web
 /.crossbar/node.pid
 /logs
+.env.production
