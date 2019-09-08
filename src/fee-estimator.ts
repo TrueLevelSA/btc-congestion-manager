@@ -1,9 +1,9 @@
-import * as RpcClient from 'bitcoin-core'
+import RpcClient from 'bitcoin-core'
 import { Observable, Subscriber } from 'rxjs'
 import { isEqual, differenceBy, minBy, sumBy, meanBy, isEmpty, range } from 'lodash'
 import { socket } from 'zeromq'
 import { config } from '../config'
-import * as Redis from 'ioredis'
+import Redis from 'ioredis'
 import { MempoolTx, MempoolTxCustom, MempoolTxDefault, GetBlock, Deal, MinsFromLastBlock }
   from './types'
 import { setItem, getBufferAdded, getBufferRemoved, getBufferBlockSize, getMinsFromLastBlock }
