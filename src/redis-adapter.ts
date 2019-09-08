@@ -2,7 +2,11 @@ import * as Redis from 'ioredis'
 import { config } from '../config'
 import { MempoolTx, MempoolTxCustom, MempoolTxDefault } from './types'
 
-const redis = new Redis(config.redis.port, config.redis.url)
+const redis = new Redis({
+  port: config.redis.port, // Redis port
+  host: config.redis.url, // Redis host
+  keyPrefix: config.redis.keyPrefix,
+})
 
 export const setItem = async (key: string, value: any) => {
   try {

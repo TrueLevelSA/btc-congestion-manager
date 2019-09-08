@@ -24,6 +24,7 @@ export const config = {
   redis: {
     port: configManager.getNumber('REDIS_PORT', 6379),
     url: configManager.getString('REDIS_HOST', 'localhost'),
+    keyPrefix: configManager.getString('REDIS_PREFIX', 'app:'),
   },
   constants: {
     range: [
