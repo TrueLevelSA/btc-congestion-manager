@@ -21,9 +21,9 @@ wamp.publish(
   'com.fee.all',
   Observable.of(
     [
-      'com.fee.v1.btc.minsfromlastblock',
-      'com.fee.v1.btc.minedtxssummary',
-      'com.fee.v1.btc.deals',
+      config.wamp.topic.minsfromlastblock,
+      config.wamp.topic.minedtxssummary,
+      config.wamp.topic.deals,
     ]
   )
 )
@@ -41,12 +41,12 @@ const dealerRecover$ = dealer$
 
 // this is an ordinary client, listening for new value, like any other outside
 // subscriber
-const monitoring$ = wamp.topic('com.fee.v1.btc.deals')
-    .flatMap(y => y.args)
+const monitoring$ = wamp.topic(config.wamp.topic.deals)
+  .flatMap(y => y.args)
 
-wamp.publish('com.fee.v1.btc.minsfromlastblock', minsFromLastBlock$)
-wamp.publish('com.fee.v1.btc.minedtxssummary', minedTxsSummary$)
-wamp.publish('com.fee.v1.btc.deals', dealerRecover$)
+wamp.publish(config.wamp.topic.minsfromlastblock, minsFromLastBlock$)
+wamp.publish(config.wamp.topic.minedtxssummary, minedTxsSummary$)
+wamp.publish(config.wamp.topic.deals, dealerRecover$)
 
 // if monitoring$ doesn't produce new values for too long, kill process
 const suicideOnStall = () => monitoring$
@@ -61,10 +61,10 @@ const suicideOnStall = () => monitoring$
       console.error()
       process.exit() // will be relaunched by forevermonitor
     }, (e) => {
-        console.error()
-        console.error(`------ ${(new Date()).toString()} ------`)
-        console.error("Failed suicide attempt, with error:\n", e)
-        console.error(`----------------------------------------`)
+      console.error()
+      console.error(`------ ${(new Date()).toString()} ------`)
+      console.error("Failed suicide attempt, with error:\n", e)
+      console.error(`----------------------------------------`)
     }
   )
 

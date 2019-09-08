@@ -16,7 +16,12 @@ export const config = {
     realm: configManager.getString('WAMP_REALM', 'realm1'),
     key: configManager.getString('WAMP_KEY', 'bcm-be'),
     user: configManager.getString('WAMP_USER', 'bcm-be'),
-    role: configManager.getString('WAMP_ROLE', configManager.getString('WAMP_USER', 'bcm-be'))
+    role: configManager.getString('WAMP_ROLE', configManager.getString('WAMP_USER', 'bcm-be')),
+    topic: {
+      deals: `com.fee.v1.${configManager.getString('CURRENCY', 'btc')}.${configManager.getString('COIN_NETWORK', 'main')}.deals`,
+      minedtxssummary: `com.fee.v1.${configManager.getString('CURRENCY', 'btc')}.${configManager.getString('COIN_NETWORK', 'main')}.minedtxssummary`,
+      minsfromlastblock: `com.fee.v1.${configManager.getString('CURRENCY', 'btc')}.${configManager.getString('COIN_NETWORK', 'main')}.minsfromlastblock`,
+    },
   },
   zmq_socket: {
     url: configManager.getString('ZMQ_URL', 'tcp://localhost:28333'),
