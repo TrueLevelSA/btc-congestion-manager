@@ -7,9 +7,11 @@
     "build": "tsc",
     "init-db": "node dist/src/redis-init.js",
     "app": "node dist/src/index.js",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node dist/src/wamp-publisher.js",
+    "client": "node dist/src/wamp-client.ts",
     "start:dev": "ts-node src/wamp-publisher.ts",
-    "client:dev": "ts-node src/wamp-client.ts"
+    "client:dev": "ts-node src/wamp-client.ts",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
     "type": "git",
