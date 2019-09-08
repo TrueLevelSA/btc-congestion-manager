@@ -43,5 +43,6 @@ export const config = {
     blockSize: 1e+6,
     minersReservedBlockRatio: 0.05,
     minSavingsRate: 0.05,
+    reliableMinedBlockThreshold: configManager.getNumber('RELIABLE_MINED_BLOCK_THRESHOLD', 500),
   }
 }

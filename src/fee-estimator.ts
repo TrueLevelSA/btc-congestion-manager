@@ -151,7 +151,7 @@ const removedTxsShared$ =
 
 export const minedTxs$ =
   removedTxsShared$
-    .filter(txs => txs.length > 500) // reliable mined block proxy
+    .filter(txs => txs.length > config.constants.reliableMinedBlockThreshold) // reliable mined block proxy
 
 // range selector of a sorted list
 const rangeSelector = (xs: any[], edge0: number, edge1 = 0) =>
