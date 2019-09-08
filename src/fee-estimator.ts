@@ -78,7 +78,7 @@ const interBlockInterval$ =
     .map(x => x.interval)
     .do(x => {
       if (config.debug) {
-        console.log(`ibi: ${x / 60e+3} minitues`)
+        console.log(`ibi: ${x / 60e+3} minutes`)
       }
     })
     .share()
