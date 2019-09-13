@@ -33,10 +33,17 @@ export class ConfigManager {
         return process.env[key] as string;
     }
 
-    public getNumber(key: string , defaultValue: number = 0, radix: number = 10): number {
+    public getInteger(key: string , defaultValue: number = 0, radix: number = 10): number {
         if (process.env[key] === undefined) {
             return defaultValue;
         }
         return parseInt(process.env[key] as string, radix);
+    }
+
+    public getFloat(key: string , defaultValue: number = .0): number {
+        if (process.env[key] === undefined) {
+            return defaultValue;
+        }
+        return parseFloat(process.env[key] as string);
     }
 }

@@ -7,7 +7,7 @@ export const config = {
   debug: process.env.NODE_ENV === 'development',
   rpc: {
     host: configManager.getString('RPC_HOST', '127.0.0.1'),
-    port: configManager.getNumber('RPC_PORT', 8332),
+    port: configManager.getInteger('RPC_PORT', 8332),
     username: configManager.getString('RPC_USERNAME', 'test'),
     password: configManager.getString('RPC_PASSWORD', 'test'),
   },
@@ -27,7 +27,7 @@ export const config = {
     url: configManager.getString('ZMQ_URL', 'tcp://localhost:28333'),
   },
   redis: {
-    port: configManager.getNumber('REDIS_PORT', 6379),
+    port: configManager.getInteger('REDIS_PORT', 6379),
     url: configManager.getString('REDIS_HOST', 'localhost'),
     keyPrefix: configManager.getString('REDIS_PREFIX', 'app:'),
   },
@@ -40,9 +40,9 @@ export const config = {
     integrateTimeAdded: 2 * 60 * 60e+3, // averaging 2 h data
     integrateBlocksRemoved: 18, // averaging 18 blocks
     timeRes: 20e+3,
-    blockSize: 1e+6,
+    blockSize: configManager.getFloat('INIT_BLOCK_SIZE', 1e+6),
     minersReservedBlockRatio: 0.05,
     minSavingsRate: 0.05,
-    reliableMinedBlockThreshold: configManager.getNumber('RELIABLE_MINED_BLOCK_THRESHOLD', 500),
+    reliableMinedBlockThreshold: configManager.getInteger('RELIABLE_MINED_BLOCK_THRESHOLD', 500),
   }
 }
