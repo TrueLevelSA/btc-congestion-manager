@@ -235,7 +235,7 @@ export const addedBytesAheadTargetPer10min = (targetBlock: number) =>
         && tx.cumSize < targetBlock * blockSize)
       .reduce((acc, tx) => acc + tx.size, 0))
     // (B / ms) * 10 min
-    .map(addSize => (addSize / integrateTimeAdded) * 10 * 60e+3) // per 10 min per B
+    .map(addSize => (addSize / integrateTimeAdded) * config.constants.averageBlockTime * 60e+3) // per averageBlockTime (10 for btc) min per B
     .distinctUntilChanged()
 
 export const removedBytesAheadTargetPer10min = (targetBlock: number) =>
@@ -250,12 +250,12 @@ export const removedBytesAheadTargetPer10min = (targetBlock: number) =>
         .reduce((acc, tx) => acc + tx.size, 0)
     }))
     .filter(x => isValid(x.rmSize) && isValid(x.ibi))
-    .map(x => (x.rmSize / x.ibi) * 10 * 60e+3)
+    .map(x => (x.rmSize / x.ibi) * config.constants.averageBlockTime * 60e+3)
     .timestamp()
     .map(x => ({ rmV: x.value, rmtimestamp: x.timestamp }))
     .distinctUntilChanged()
 
-// mempool growth velocity in B / 10 min ahead of targetBlock
+// mempool growth velocity in B /  averageBlockTime minutes (10 for btc) ahead of targetBlock
 export const velocity = (targetBlock: number) =>
   Observable.combineLatest(
     addedBytesAheadTargetPer10min(targetBlock),

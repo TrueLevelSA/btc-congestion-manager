@@ -44,5 +44,6 @@ export const config = {
     minersReservedBlockRatio: 0.05,
     minSavingsRate: 0.05,
     reliableMinedBlockThreshold: configManager.getInteger('RELIABLE_MINED_BLOCK_THRESHOLD', 500),
+    averageBlockTime: configManager.getFloat('AVG_BLOCK_TIME', 10), // average time between blocks
   }
 }
