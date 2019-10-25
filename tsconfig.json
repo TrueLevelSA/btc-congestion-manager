@@ -10,6 +10,7 @@
         "emitDecoratorMetadata": true,
         "experimentalDecorators": true,
         "strictNullChecks": true,
+        "esModuleInterop": true,
         "target": "ES5",
         "lib": ["ES6", "DOM"],
         "typeRoots": [

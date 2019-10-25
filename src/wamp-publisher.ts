@@ -9,21 +9,21 @@ const wamp = new Client(
   config.wamp.realm,
   {
     authmethods: ['wampcra'],
-    role: config.wamp.user,
+    role: config.wamp.role,
     authid: config.wamp.user,
   }
 )
 
 wamp.onChallenge(challenge => challenge
-  .map((x) => auth_cra.sign(config.wamp.key, x.extra.challenge)))
+  .map((x) => auth_cra.sign(config.wamp.key, (x.extra as any).challenge)))
 
 wamp.publish(
   'com.fee.all',
   Observable.of(
     [
-      'com.fee.v1.btc.minsfromlastblock',
-      'com.fee.v1.btc.minedtxssummary',
-      'com.fee.v1.btc.deals',
+      config.wamp.topic.minsfromlastblock,
+      config.wamp.topic.minedtxssummary,
+      config.wamp.topic.deals,
     ]
   )
 )
@@ -41,12 +41,12 @@ const dealerRecover$ = dealer$
 
 // this is an ordinary client, listening for new value, like any other outside
 // subscriber
-const monitoring$ = wamp.topic('com.fee.v1.btc.deals')
-    .flatMap(y => y.args)
+const monitoring$ = wamp.topic(config.wamp.topic.deals)
+  .flatMap(y => y.args)
 
-wamp.publish('com.fee.v1.btc.minsfromlastblock', minsFromLastBlock$)
-wamp.publish('com.fee.v1.btc.minedtxssummary', minedTxsSummary$)
-wamp.publish('com.fee.v1.btc.deals', dealerRecover$)
+wamp.publish(config.wamp.topic.minsfromlastblock, minsFromLastBlock$)
+wamp.publish(config.wamp.topic.minedtxssummary, minedTxsSummary$)
+wamp.publish(config.wamp.topic.deals, dealerRecover$)
 
 // if monitoring$ doesn't produce new values for too long, kill process
 const suicideOnStall = () => monitoring$
@@ -59,12 +59,12 @@ const suicideOnStall = () => monitoring$
       console.error(`Suicide because no estimates published by wamp-publisher for > ${(config.constants.timeRes * 10) / 1e+3} seconds`)
       console.error(`----------------------------------------`)
       console.error()
-      process.exit() // will be relauched by forevermonitor
+      process.exit() // will be relaunched by forevermonitor
     }, (e) => {
-        console.error()
-        console.error(`------ ${(new Date()).toString()} ------`)
-        console.error("Failed suicide attempt, with error:\n", e)
-        console.error(`----------------------------------------`)
+      console.error()
+      console.error(`------ ${(new Date()).toString()} ------`)
+      console.error("Failed suicide attempt, with error:\n", e)
+      console.error(`----------------------------------------`)
     }
   )
 

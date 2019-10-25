@@ -1,4 +1,4 @@
-import * as Redis from 'ioredis'
+import Redis from 'ioredis'
 import { config } from '../config'
 import { setItem } from './redis-adapter'
 import { Observable } from 'rxjs'
