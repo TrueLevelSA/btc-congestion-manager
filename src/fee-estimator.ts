@@ -38,13 +38,14 @@ const blockSize$ =
       Observable.fromPromise(
         rpc.getBlock(hash.toString('hex'))
           .then(res => res)
-          .catch(err => { throw err })))
+          .catch(err => {
+            console.error("Error fetching block from rpc")
+            throw err
+          })))
     .filter(x => isValid(x.weight))
     .map(x => x.weight / 4)
     .do(x => {
-      if (config.debug) {
-        console.log(`block size = ${x / 1e+6} MvB`)
-      }
+      console.log(`block size = ${x / 1e+6} MvB`)
     })
 
 const bufferBlockSizeInitial$ =
@@ -129,7 +130,10 @@ export const memPooler$ =
       Observable.fromPromise(
         rpc.getRawMemPool(true)
           .then(res => res)
-          .catch(err => { throw err })))
+          .catch(err => {
+            console.error("Error fetching raw mempool from rpc")
+            throw err
+          })))
     .withLatestFrom(effectiveBlockSize$, (txs, blockSize) => ({ txs, blockSize }))
     .map(({ txs, blockSize }) => sortByFee(txs, blockSize))
     .share()
