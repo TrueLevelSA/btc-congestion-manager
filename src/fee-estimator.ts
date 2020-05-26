@@ -131,7 +131,7 @@ export const memPooler$ =
     .merge(blockHash$) // emit when new block found
     .switchMap((): Observable<any> =>
       Observable.fromPromise(
-        rpc.getRawMemPool(true)
+        rpc.getRawmempool(true)
           .then(res => res)
           .catch(err => {
             console.error("Error fetching raw mempool from rpc")
