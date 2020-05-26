@@ -34,6 +34,9 @@ export const blockHash$: Observable<Buffer> =
 
 const blockSize$ =
   blockHash$
+    .do((hash) => {
+      console.log(`Calculating block size ${hash}`)
+    })
     .flatMap((hash): Observable<GetBlock> =>
       Observable.fromPromise(
         rpc.getBlock(hash.toString('hex'))
