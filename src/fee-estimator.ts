@@ -18,14 +18,17 @@ export const blockHash$: Observable<Buffer> =
   Observable.create((subscriber: Subscriber<any>) => {
     const s = socket('sub')
     s.connect(config.zmq_socket.url)
-    s.subscribe('hashblock')
+    s.subscribe('')
     s.monitor(10000)
     s.on('open', () => console.log('socket opened'))
-    s.on('message', (topic, message) => subscriber.next(message))
+    s.on('message', (topic, message) => {
+      console.log('block received ', { message })
+      subscriber.next(message)
+    })
     s.on('reconnect_error', (err) => subscriber.error(err))
     s.on('reconnect_failed', () => subscriber.error(new Error('reconnection failed')))
     s.on('close', () => {
-      s.unsubscribe('hashblock')
+      s.unsubscribe('')
       s.close()
       subscriber.complete()
     })
