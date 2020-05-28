@@ -22,7 +22,7 @@ export const blockHash$: Observable<Buffer> =
     s.monitor(10000)
     s.on('open', () => console.log('socket opened'))
     s.on('message', (topic, message) => {
-      console.log('block received ', { message })
+      console.log('block received ', { topic, hash: message.toString('hex') })
       subscriber.next(message)
     })
     s.on('reconnect_error', (err) => subscriber.error(err))
