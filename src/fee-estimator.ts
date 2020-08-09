@@ -22,7 +22,7 @@ export const blockHash$: Observable<Buffer> =
     s.monitor(10000)
     s.on('open', () => console.log('socket opened'))
     s.on('message', (topic, message) => {
-      console.log('block received ', { topic, hash: message.toString('hex') })
+      console.log('block received ', { topic: topic.toString('hex'), hash: message.toString('hex') })
       subscriber.next(message)
     })
     s.on('reconnect_error', (err) => subscriber.error(err))
@@ -37,9 +37,7 @@ export const blockHash$: Observable<Buffer> =
 
 const blockSize$ =
   blockHash$
-    .do((hash) => {
-      console.log(`Calculating block size ${hash}`)
-    })
+    .do((x) => console.log('Calculating block size', { x }))
     .flatMap((hash): Observable<GetBlock> =>
       Observable.fromPromise(
         rpc.getBlock(hash.toString('hex'))
@@ -48,7 +46,10 @@ const blockSize$ =
             console.error("Error fetching block from rpc")
             throw err
           })))
-    .filter(x => isValid(x.weight))
+    .filter(x => {
+      console.log('validating block', { x })
+      return isValid(x.weight)
+    })
     .map(x => x.weight / 4)
     .do(x => {
       console.log(`block size = ${x / 1e+6} MvB`)
