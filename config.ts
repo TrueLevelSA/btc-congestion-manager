@@ -10,6 +10,7 @@ export const config = {
     port: configManager.getInteger('RPC_PORT', 8332),
     username: configManager.getString('RPC_USERNAME', 'test'),
     password: configManager.getString('RPC_PASSWORD', 'test'),
+    ssl: configManager.getBoolean('RPC_SSL_ENABLED', false),
   },
   wamp: {
     url: configManager.getString('WAMP_WS', 'ws://localhost:8080/ws'),
@@ -29,6 +30,7 @@ export const config = {
   redis: {
     port: configManager.getInteger('REDIS_PORT', 6379),
     url: configManager.getString('REDIS_HOST', 'localhost'),
+    password: configManager.getString('REDIS_PASSWORD'),
     keyPrefix: configManager.getString('REDIS_PREFIX', 'app:'),
   },
   constants: {

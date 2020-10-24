@@ -3,8 +3,7 @@ import { Observable, Subscriber } from 'rxjs'
 import { isEqual, differenceBy, minBy, sumBy, meanBy, isEmpty, range } from 'lodash'
 import { socket } from 'zeromq'
 import { config } from '../config'
-import Redis from 'ioredis'
-import { MempoolTx, MempoolTxCustom, MempoolTxDefault, GetBlock, Deal, MinsFromLastBlock }
+import { MempoolTx, GetBlock, Deal, MinsFromLastBlock }
   from './types'
 import { setItem, getBufferAdded, getBufferRemoved, getBufferBlockSize, getMinsFromLastBlock }
   from './redis-adapter'
@@ -109,7 +108,7 @@ const isValid = (x: number) => x != null && !isNaN(x) && x > 0
 export const sortByFee = (txs, blockSize: number, cumSize = 0, targetBlock = 1) =>
   Object.keys(txs)
     .map((txid) => ({
-      size: <number>txs[txid].size,
+      size: <number>(txs[txid].size ? txs[txid].size : txs[txid].vsize),
       fee: <number>txs[txid].fee,
       descendantsize: <number>txs[txid].descendantsize,
       descendantfees: <number>txs[txid].descendantfees,
