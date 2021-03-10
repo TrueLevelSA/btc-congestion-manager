@@ -1,10 +1,10 @@
 import Redis from 'ioredis'
 import { config } from '../config'
-import { MempoolTx, MempoolTxCustom, MempoolTxDefault } from './types'
 
 const redis = new Redis({
   port: config.redis.port, // Redis port
   host: config.redis.url, // Redis host
+  password: config.redis.password,
   keyPrefix: config.redis.keyPrefix,
 })
 

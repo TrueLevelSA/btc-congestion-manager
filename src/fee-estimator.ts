@@ -3,8 +3,7 @@ import { Observable, Subscriber } from 'rxjs'
 import { isEqual, differenceBy, minBy, sumBy, meanBy, isEmpty, range } from 'lodash'
 import { socket } from 'zeromq'
 import { config } from '../config'
-import Redis from 'ioredis'
-import { MempoolTx, MempoolTxCustom, MempoolTxDefault, GetBlock, Deal, MinsFromLastBlock }
+import { MempoolTx, GetBlock, Deal, MinsFromLastBlock }
   from './types'
 import { setItem, getBufferAdded, getBufferRemoved, getBufferBlockSize, getMinsFromLastBlock }
   from './redis-adapter'
@@ -18,14 +17,17 @@ export const blockHash$: Observable<Buffer> =
   Observable.create((subscriber: Subscriber<any>) => {
     const s = socket('sub')
     s.connect(config.zmq_socket.url)
-    s.subscribe('hashblock')
+    s.subscribe('')
     s.monitor(10000)
     s.on('open', () => console.log('socket opened'))
-    s.on('message', (topic, message) => subscriber.next(message))
+    s.on('message', (topic, message) => {
+      console.log('block received ', { topic: topic.toString('hex'), hash: message.toString('hex') })
+      subscriber.next(message)
+    })
     s.on('reconnect_error', (err) => subscriber.error(err))
     s.on('reconnect_failed', () => subscriber.error(new Error('reconnection failed')))
     s.on('close', () => {
-      s.unsubscribe('hashblock')
+      s.unsubscribe('')
       s.close()
       subscriber.complete()
     })
@@ -34,17 +36,22 @@ export const blockHash$: Observable<Buffer> =
 
 const blockSize$ =
   blockHash$
+    .do((x) => console.log('Calculating block size', { x }))
     .flatMap((hash): Observable<GetBlock> =>
       Observable.fromPromise(
         rpc.getBlock(hash.toString('hex'))
           .then(res => res)
-          .catch(err => { throw err })))
-    .filter(x => isValid(x.weight))
+          .catch(err => {
+            console.error("Error fetching block from rpc")
+            throw err
+          })))
+    .filter(x => {
+      console.log('validating block', { x })
+      return isValid(x.weight)
+    })
     .map(x => x.weight / 4)
     .do(x => {
-      if (config.debug) {
-        console.log(`block size = ${x / 1e+6} MvB`)
-      }
+      console.log(`block size = ${x / 1e+6} MvB`)
     })
 
 const bufferBlockSizeInitial$ =
@@ -101,7 +108,7 @@ const isValid = (x: number) => x != null && !isNaN(x) && x > 0
 export const sortByFee = (txs, blockSize: number, cumSize = 0, targetBlock = 1) =>
   Object.keys(txs)
     .map((txid) => ({
-      size: <number>txs[txid].size,
+      size: <number>(txs[txid].size ? txs[txid].size : txs[txid].vsize),
       fee: <number>txs[txid].fee,
       descendantsize: <number>txs[txid].descendantsize,
       descendantfees: <number>txs[txid].descendantfees,
@@ -127,9 +134,12 @@ export const memPooler$ =
     .merge(blockHash$) // emit when new block found
     .switchMap((): Observable<any> =>
       Observable.fromPromise(
-        rpc.getRawMemPool(true)
+        rpc.getRawMempool(true)
           .then(res => res)
-          .catch(err => { throw err })))
+          .catch(err => {
+            console.error("Error fetching raw mempool from rpc")
+            throw err
+          })))
     .withLatestFrom(effectiveBlockSize$, (txs, blockSize) => ({ txs, blockSize }))
     .map(({ txs, blockSize }) => sortByFee(txs, blockSize))
     .share()

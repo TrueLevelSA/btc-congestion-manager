@@ -6,3 +6,5 @@
 /.crossbar/node.pid
 /logs
 .env.production
+docker-compose.yml
+.vscode
